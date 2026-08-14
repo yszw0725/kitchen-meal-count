@@ -58,6 +58,15 @@ export default async function HomePage({
       )}
 
       {!error && <DayBoardView date={date} board={(board ?? []) as BoardMeal[]} />}
+
+      <div className="flex justify-center pt-2">
+        <Link
+          href="/emergency-edit"
+          className="rounded-lg bg-zinc-900 px-6 py-3 text-base font-medium text-white hover:bg-zinc-800"
+        >
+          ＋ 欠食・喫食を登録（緊急入力）
+        </Link>
+      </div>
     </main>
   );
 }
