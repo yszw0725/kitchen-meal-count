@@ -43,6 +43,24 @@ export default function EmergencyEditClient({
     null,
   );
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [online, setOnline] = useState(() =>
+    typeof navigator === "undefined" ? true : navigator.onLine,
+  );
+
+  useEffect(() => {
+    function handleOnline() {
+      setOnline(true);
+    }
+    function handleOffline() {
+      setOnline(false);
+    }
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -95,7 +113,7 @@ export default function EmergencyEditClient({
   }
 
   async function handleTap(resident: Resident) {
-    if (pendingId) return;
+    if (pendingId || !online) return;
     const meals = [...selectedMeals];
     setPendingId(resident.id);
     try {
@@ -140,13 +158,20 @@ export default function EmergencyEditClient({
         </Link>
       </div>
 
+      {!online && (
+        <p className="rounded-md border border-zinc-300 bg-zinc-100 p-3 text-center text-sm font-medium text-zinc-600">
+          オフラインです。通信復旧後に操作できます。
+        </p>
+      )}
+
       {!selectedGroup && (
         <div className="grid grid-cols-2 gap-4">
           {groups.map((g) => (
             <button
               key={g.id}
               onClick={() => setSelectedGroupId(g.id)}
-              className="rounded-xl border border-zinc-300 bg-white py-10 text-2xl font-bold text-zinc-900 hover:bg-zinc-50"
+              disabled={!online}
+              className="rounded-xl border border-zinc-300 bg-white py-10 text-2xl font-bold text-zinc-900 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400 disabled:hover:bg-zinc-100"
             >
               {g.short_name}
               <span className="mt-2 block text-sm font-normal text-zinc-500">
@@ -199,8 +224,8 @@ export default function EmergencyEditClient({
                 <button
                   key={r.id}
                   onClick={() => handleTap(r)}
-                  disabled={pendingId === r.id}
-                  className={`flex w-full items-center justify-between rounded-lg border px-4 py-4 text-left text-lg transition-colors disabled:opacity-50 ${
+                  disabled={pendingId === r.id || !online}
+                  className={`flex w-full items-center justify-between rounded-lg border px-4 py-4 text-left text-lg transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                     marked
                       ? "border-amber-400 bg-amber-50"
                       : "border-zinc-200 bg-white hover:bg-zinc-50"

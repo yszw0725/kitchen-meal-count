@@ -34,13 +34,21 @@ function GroupNames({ group }: { group: BoardGroup }) {
 function MealCard({
   mealData,
   onSelectGroup,
+  highlightKeys,
 }: {
   mealData: BoardMeal;
   onSelectGroup: (group: BoardGroup) => void;
+  highlightKeys: Set<string>;
 }) {
+  const totalHighlighted = highlightKeys.has(`${mealData.meal}:total`);
+
   return (
     <div className="flex min-h-[640px] flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white">
-      <div className="border-b border-zinc-100 px-4 py-3 text-center">
+      <div
+        className={`border-b border-zinc-100 px-4 py-3 text-center transition-colors duration-700 ${
+          totalHighlighted ? "bg-amber-100" : ""
+        }`}
+      >
         <p className="text-sm font-medium text-zinc-500">{MEAL_LABEL[mealData.meal]}</p>
         <p className="text-6xl font-bold tabular-nums text-zinc-900">
           {mealData.cooking_total}
@@ -49,21 +57,26 @@ function MealCard({
       </div>
 
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
-        {mealData.groups.map((g) => (
-          <button
-            key={g.group_id}
-            onClick={() => onSelectGroup(g)}
-            className="w-full rounded-md p-2 text-left hover:bg-zinc-50"
-          >
-            <div className="flex items-baseline justify-between">
-              <span className="text-sm font-medium text-zinc-800">{g.short_name}</span>
-              <span className="text-2xl font-semibold tabular-nums text-zinc-900">
-                {g.actual_count}
-              </span>
-            </div>
-            <GroupNames group={g} />
-          </button>
-        ))}
+        {mealData.groups.map((g) => {
+          const groupHighlighted = highlightKeys.has(`${mealData.meal}:${g.group_id}`);
+          return (
+            <button
+              key={g.group_id}
+              onClick={() => onSelectGroup(g)}
+              className={`w-full rounded-md p-2 text-left transition-colors duration-700 hover:bg-zinc-50 ${
+                groupHighlighted ? "bg-amber-100" : ""
+              }`}
+            >
+              <div className="flex items-baseline justify-between">
+                <span className="text-sm font-medium text-zinc-800">{g.short_name}</span>
+                <span className="text-2xl font-semibold tabular-nums text-zinc-900">
+                  {g.actual_count}
+                </span>
+              </div>
+              <GroupNames group={g} />
+            </button>
+          );
+        })}
       </div>
 
       <div className="space-y-1 border-t border-zinc-100 px-4 py-3 text-sm text-zinc-600">
@@ -151,9 +164,11 @@ function DetailModal({
 export default function DayBoardView({
   date,
   board,
+  highlightKeys = new Set(),
 }: {
   date: string;
   board: BoardMeal[];
+  highlightKeys?: Set<string>;
 }) {
   const [selected, setSelected] = useState<{ meal: BoardMeal; group: BoardGroup } | null>(
     null,
@@ -167,6 +182,7 @@ export default function DayBoardView({
             key={m.meal}
             mealData={m}
             onSelectGroup={(group) => setSelected({ meal: m, group })}
+            highlightKeys={highlightKeys}
           />
         ))}
       </div>
