@@ -37,6 +37,9 @@ export default async function HomePage({
             {profile?.display_name ?? user.email}（
             {role === "admin" ? "管理者" : "厨房"}）
           </span>
+          <Link href="/history" className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm">
+            履歴
+          </Link>
           {role === "admin" && (
             <Link
               href="/admin"

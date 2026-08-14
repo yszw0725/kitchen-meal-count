@@ -5,6 +5,7 @@ export type BoardGroup = {
   short_name: string;
   enrolled_count: number;
   actual_count: number;
+  is_overridden: boolean;
   absent_names: string[];
   extra_names: string[];
   present_names: string[];

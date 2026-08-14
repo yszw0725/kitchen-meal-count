@@ -68,7 +68,14 @@ function MealCard({
               }`}
             >
               <div className="flex items-baseline justify-between">
-                <span className="text-sm font-medium text-zinc-800">{g.short_name}</span>
+                <span className="flex items-center gap-1.5 text-sm font-medium text-zinc-800">
+                  {g.short_name}
+                  {g.is_overridden && (
+                    <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-700">
+                      修正済み
+                    </span>
+                  )}
+                </span>
                 <span className="text-2xl font-semibold tabular-nums text-zinc-900">
                   {g.actual_count}
                 </span>
@@ -127,6 +134,11 @@ function DetailModal({
         <p className="mt-1 text-lg font-bold text-zinc-900">
           {listLabel} {list.length}名（在籍 {group.enrolled_count}名）
         </p>
+        {group.is_overridden && (
+          <p className="mt-1 inline-block rounded bg-rose-100 px-2 py-1 text-xs font-bold text-rose-700">
+            管理者により実食数が {group.actual_count} に手動修正されています
+          </p>
+        )}
 
         <ul className="mt-3 max-h-64 space-y-1 overflow-y-auto text-sm text-zinc-700">
           {list.length === 0 && <li className="text-zinc-400">（該当なし）</li>}
