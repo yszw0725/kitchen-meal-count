@@ -8,7 +8,7 @@ const VALID_MEALS: MealType[] = ["breakfast", "lunch", "dinner"];
 export async function POST(request: NextRequest) {
   const auth = await requireUser();
   if (auth.error) return auth.error;
-  const { user, service } = auth;
+  const { user, supabase } = auth;
 
   const body = await request.json().catch(() => null);
   const residentId = body?.residentId as string | undefined;
@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "不正なリクエストです。" }, { status: 400 });
   }
 
-  const { data: resident } = await service
+  const { data: resident } = await supabase
     .from("residents")
     .select("id, name, group_id, resident_groups(short_name)")
     .eq("id", residentId)
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
   // kitchen_overrides.date は常に当日固定。クライアントからの日付指定は一切受け付けない (§8.0)。
   const today = todayInTokyo();
 
-  const { data: existing } = await service
+  const { data: existing } = await supabase
     .from("kitchen_overrides")
     .select("meal")
     .eq("resident_id", residentId)
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
   const mealLabel = meals.map((m) => MEAL_LABEL[m]).join("・");
 
   if (allMarked) {
-    const { error } = await service
+    const { error } = await supabase
       .from("kitchen_overrides")
       .delete()
       .eq("resident_id", residentId)
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
   }
 
   const missingMeals = meals.filter((m) => !existingMeals.has(m));
-  const { error } = await service.from("kitchen_overrides").insert(
+  const { error } = await supabase.from("kitchen_overrides").insert(
     missingMeals.map((m) => ({
       resident_id: residentId,
       date: today,
