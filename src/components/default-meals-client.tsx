@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { MEAL_LABEL, type MealType } from "@/lib/board-types";
+import { useOnlineStatus } from "@/lib/use-online-status";
+import OfflineBanner from "@/components/offline-banner";
 
 type Resident = { id: string; name: string; group_id: string; left_on: string | null };
 type Group = { id: string; short_name: string; sort_order: number };
@@ -36,6 +38,7 @@ export default function DefaultMealsClient({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const online = useOnlineStatus();
 
   const grid = useMemo(() => {
     const map = new Map<string, boolean>();
@@ -67,6 +70,10 @@ export default function DefaultMealsClient({
   }
 
   async function handleSave() {
+    if (!online) {
+      setError("オフラインのため保存できません。");
+      return;
+    }
     setSaving(true);
     setError(null);
     setSaved(false);
@@ -100,6 +107,7 @@ export default function DefaultMealsClient({
 
   return (
     <div className="space-y-4">
+      {!online && <OfflineBanner message="オフラインのため保存できません。" />}
       <div>
         <label className="block text-xs text-zinc-500">利用者</label>
         <select
@@ -166,7 +174,7 @@ export default function DefaultMealsClient({
 
       <button
         onClick={handleSave}
-        disabled={saving || !selectedId}
+        disabled={saving || !selectedId || !online}
         className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
       >
         {saving ? "保存中..." : "保存"}

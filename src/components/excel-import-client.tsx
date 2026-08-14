@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { useOnlineStatus } from "@/lib/use-online-status";
+import OfflineBanner from "@/components/offline-banner";
 
 type ImportError = {
   sheet: string;
@@ -51,9 +53,11 @@ const TYPE_LABEL: Record<string, string> = {
 export default function ExcelImportClient() {
   const [stage, setStage] = useState<Stage>({ phase: "idle" });
   const [resolutions, setResolutions] = useState<Record<string, "kept" | "overwritten">>({});
+  const online = useOnlineStatus();
 
   async function handleUpload(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!online) return;
     const form = event.currentTarget;
     const fileInput = form.elements.namedItem("file") as HTMLInputElement;
     const file = fileInput.files?.[0];
@@ -80,7 +84,7 @@ export default function ExcelImportClient() {
   }
 
   async function handleConfirm() {
-    if (stage.phase !== "review") return;
+    if (stage.phase !== "review" || !online) return;
     setStage({ phase: "confirming", batchId: stage.batchId, diffSummary: stage.diffSummary });
 
     const res = await fetch(`/api/excel-import/${stage.batchId}/confirm`, {
@@ -99,13 +103,14 @@ export default function ExcelImportClient() {
   }
 
   async function handleCancel() {
-    if (stage.phase !== "review") return;
+    if (stage.phase !== "review" || !online) return;
     await fetch(`/api/excel-import/${stage.batchId}/cancel`, { method: "POST" });
     setStage({ phase: "idle" });
   }
 
   return (
     <div className="space-y-6">
+      {!online && <OfflineBanner message="オフラインのためExcel取込は操作できません。" />}
       {(stage.phase === "idle" || stage.phase === "uploading") && (
         <form onSubmit={handleUpload} className="space-y-3">
           <label className="block text-sm font-medium text-zinc-700">
@@ -120,7 +125,7 @@ export default function ExcelImportClient() {
           />
           <button
             type="submit"
-            disabled={stage.phase === "uploading"}
+            disabled={stage.phase === "uploading" || !online}
             className="rounded-md bg-zinc-900 px-4 py-2 text-white disabled:opacity-50"
           >
             {stage.phase === "uploading" ? "アップロード中..." : "アップロード"}
@@ -251,14 +256,14 @@ export default function ExcelImportClient() {
           <div className="flex gap-3">
             <button
               onClick={handleConfirm}
-              disabled={stage.phase === "confirming"}
+              disabled={stage.phase === "confirming" || !online}
               className="rounded-md bg-zinc-900 px-4 py-2 text-white disabled:opacity-50"
             >
               {stage.phase === "confirming" ? "反映中..." : "この内容で反映する"}
             </button>
             <button
               onClick={handleCancel}
-              disabled={stage.phase === "confirming"}
+              disabled={stage.phase === "confirming" || !online}
               className="rounded-md border border-zinc-300 px-4 py-2 disabled:opacity-50"
             >
               キャンセル

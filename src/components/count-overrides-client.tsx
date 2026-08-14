@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { MEAL_LABEL, type MealType } from "@/lib/board-types";
+import { useOnlineStatus } from "@/lib/use-online-status";
+import OfflineBanner from "@/components/offline-banner";
 
 type Group = { id: string; short_name: string; sort_order: number };
 type Override = {
@@ -37,6 +39,7 @@ export default function CountOverridesClient({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const online = useOnlineStatus();
 
   const groupName = (id: string) => groups.find((g) => g.id === id)?.short_name ?? "(不明)";
 
@@ -44,6 +47,10 @@ export default function CountOverridesClient({
     e.preventDefault();
     setError(null);
 
+    if (!online) {
+      setError("オフラインのため保存できません。");
+      return;
+    }
     if (reason.trim() === "") {
       setError("理由を入力してください。");
       return;
@@ -88,6 +95,10 @@ export default function CountOverridesClient({
   }
 
   async function handleDelete(id: string) {
+    if (!online) {
+      setError("オフラインのため操作できません。");
+      return;
+    }
     if (confirmDeleteId !== id) {
       setConfirmDeleteId(id);
       return;
@@ -104,6 +115,7 @@ export default function CountOverridesClient({
 
   return (
     <div className="space-y-8">
+      {!online && <OfflineBanner message="オフラインのため保存・解除はできません。" />}
       <form
         onSubmit={handleSubmit}
         className="space-y-4 rounded-lg border border-zinc-200 p-4"
@@ -173,7 +185,7 @@ export default function CountOverridesClient({
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || !online}
           className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
           {submitting ? "保存中..." : "保存"}
@@ -212,7 +224,8 @@ export default function CountOverridesClient({
                   <td className="px-3 py-2 text-right">
                     <button
                       onClick={() => handleDelete(o.id)}
-                      className={`rounded-md border px-2 py-1 text-xs ${
+                      disabled={!online}
+                      className={`rounded-md border px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50 ${
                         confirmDeleteId === o.id
                           ? "border-red-400 bg-red-50 text-red-700"
                           : "border-zinc-300 text-zinc-600"

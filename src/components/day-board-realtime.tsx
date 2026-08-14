@@ -4,8 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import type { BoardMeal } from "@/lib/board-types";
+import { useOnlineStatus } from "@/lib/use-online-status";
 import DayBoardView from "@/components/day-board-view";
 import ConnectionIndicator from "@/components/connection-indicator";
+import OfflineBanner from "@/components/offline-banner";
 
 const POLL_INTERVAL_MS = 5 * 60 * 1000;
 const HIGHLIGHT_DURATION_MS = 1000;
@@ -45,7 +47,9 @@ export default function DayBoardRealtime({
   initialBoard: BoardMeal[];
 }) {
   const [board, setBoard] = useState(initialBoard);
-  const [online, setOnline] = useState(true);
+  const [channelOnline, setChannelOnline] = useState(true);
+  const browserOnline = useOnlineStatus();
+  const online = channelOnline && browserOnline;
   const [lastUpdated, setLastUpdated] = useState(() => new Date());
   const [highlightKeys, setHighlightKeys] = useState<Set<string>>(new Set());
 
@@ -114,9 +118,9 @@ export default function DayBoardRealtime({
     }
 
     channel.subscribe((status) => {
-      const isOnline = status === "SUBSCRIBED";
-      setOnline(isOnline);
-      if (isOnline) refetch(); // 再接続時に取りこぼしを回収
+      const isSubscribed = status === "SUBSCRIBED";
+      setChannelOnline(isSubscribed);
+      if (isSubscribed) refetch(); // 再接続時に取りこぼしを回収
     });
 
     return () => {
@@ -137,8 +141,15 @@ export default function DayBoardRealtime({
     };
   }, [refetch]);
 
+  // ブラウザのネットワーク接続が復旧したタイミングでも取りこぼしを回収する
+  useEffect(() => {
+    if (browserOnline) refetch();
+  }, [browserOnline, refetch]);
+
   return (
-    <div>
+    <div className="space-y-4">
+      {!online && <OfflineBanner />}
+
       <DayBoardView date={date} board={board} highlightKeys={highlightKeys} />
 
       <div className="flex justify-center pt-4">

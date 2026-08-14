@@ -8,6 +8,8 @@ import {
   mealFormSuffix,
   type MealType,
 } from "@/lib/emergency-meal";
+import { useOnlineStatus } from "@/lib/use-online-status";
+import OfflineBanner from "@/components/offline-banner";
 
 type Group = { id: string; short_name: string; sort_order: number };
 type Resident = {
@@ -43,24 +45,7 @@ export default function EmergencyEditClient({
     null,
   );
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [online, setOnline] = useState(() =>
-    typeof navigator === "undefined" ? true : navigator.onLine,
-  );
-
-  useEffect(() => {
-    function handleOnline() {
-      setOnline(true);
-    }
-    function handleOffline() {
-      setOnline(false);
-    }
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-    return () => {
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    };
-  }, []);
+  const online = useOnlineStatus();
 
   useEffect(() => {
     return () => {
@@ -158,11 +143,7 @@ export default function EmergencyEditClient({
         </Link>
       </div>
 
-      {!online && (
-        <p className="rounded-md border border-zinc-300 bg-zinc-100 p-3 text-center text-sm font-medium text-zinc-600">
-          オフラインです。通信復旧後に操作できます。
-        </p>
-      )}
+      {!online && <OfflineBanner message="通信復旧後に操作できます。" />}
 
       {!selectedGroup && (
         <div className="grid grid-cols-2 gap-4">

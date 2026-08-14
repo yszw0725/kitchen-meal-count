@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { useOnlineStatus } from "@/lib/use-online-status";
+import OfflineBanner from "@/components/offline-banner";
 
 type User = {
   id: string;
@@ -14,8 +16,13 @@ export default function UsersClient({ users }: { users: User[] }) {
   const [issued, setIssued] = useState<Record<string, string>>({});
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const online = useOnlineStatus();
 
   async function handleReset(userId: string) {
+    if (!online) {
+      setError("オフラインのため操作できません。");
+      return;
+    }
     setPendingId(userId);
     setError(null);
     const res = await fetch(`/api/admin/users/${userId}/reset-password`, {
@@ -33,6 +40,7 @@ export default function UsersClient({ users }: { users: User[] }) {
 
   return (
     <div className="space-y-4">
+      {!online && <OfflineBanner message="オフラインのためパスワード再発行はできません。" />}
       {error && <p className="text-sm text-red-600">{error}</p>}
       {users.map((u) => (
         <div key={u.id} className="rounded-lg border border-zinc-200 p-4">
@@ -53,7 +61,7 @@ export default function UsersClient({ users }: { users: User[] }) {
             </div>
             <button
               onClick={() => handleReset(u.id)}
-              disabled={pendingId === u.id}
+              disabled={pendingId === u.id || !online}
               className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm disabled:opacity-50"
             >
               {pendingId === u.id ? "発行中..." : "パスワードを再発行"}

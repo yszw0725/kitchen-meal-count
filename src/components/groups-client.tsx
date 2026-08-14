@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useOnlineStatus } from "@/lib/use-online-status";
+import OfflineBanner from "@/components/offline-banner";
 
 type Group = {
   id: string;
@@ -22,12 +24,17 @@ export default function GroupsClient({ initialGroups }: { initialGroups: Group[]
   const [newShortName, setNewShortName] = useState("");
   const [newSortOrder, setNewSortOrder] = useState("");
   const [adding, setAdding] = useState(false);
+  const online = useOnlineStatus();
 
   function updateLocal(id: string, patch: Partial<Group>) {
     setGroups((prev) => prev.map((g) => (g.id === id ? { ...g, ...patch } : g)));
   }
 
   async function handleSave(group: Group) {
+    if (!online) {
+      setError("オフラインのため保存できません。");
+      return;
+    }
     setSavingId(group.id);
     setError(null);
     const supabase = createClient();
@@ -53,6 +60,10 @@ export default function GroupsClient({ initialGroups }: { initialGroups: Group[]
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!online) {
+      setError("オフラインのため追加できません。");
+      return;
+    }
     if (!newName.trim() || !newShortName.trim()) {
       setError("名称・表示名を入力してください。");
       return;
@@ -81,6 +92,7 @@ export default function GroupsClient({ initialGroups }: { initialGroups: Group[]
 
   return (
     <div className="space-y-6">
+      {!online && <OfflineBanner message="オフラインのため編集内容を保存できません。" />}
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <div className="overflow-hidden rounded-lg border border-zinc-200">
@@ -124,7 +136,8 @@ export default function GroupsClient({ initialGroups }: { initialGroups: Group[]
                 <td className="px-3 py-2">
                   <button
                     onClick={() => handleToggleActive(g)}
-                    className={`rounded-full px-2 py-1 text-xs font-bold ${
+                    disabled={!online}
+                    className={`rounded-full px-2 py-1 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-50 ${
                       g.is_active
                         ? "bg-emerald-100 text-emerald-800"
                         : "bg-zinc-200 text-zinc-600"
@@ -136,7 +149,7 @@ export default function GroupsClient({ initialGroups }: { initialGroups: Group[]
                 <td className="px-3 py-2 text-right">
                   <button
                     onClick={() => handleSave(g)}
-                    disabled={savingId === g.id}
+                    disabled={savingId === g.id || !online}
                     className="rounded-md border border-zinc-300 px-3 py-1 text-xs disabled:opacity-50"
                   >
                     {savingId === g.id ? "保存中..." : "保存"}
@@ -179,7 +192,7 @@ export default function GroupsClient({ initialGroups }: { initialGroups: Group[]
         </div>
         <button
           type="submit"
-          disabled={adding}
+          disabled={adding || !online}
           className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
           {adding ? "追加中..." : "追加"}
