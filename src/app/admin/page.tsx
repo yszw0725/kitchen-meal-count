@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import Link from "next/link";
 import { getCurrentUserAndProfile } from "@/lib/current-user";
 
 export default async function AdminPage() {
@@ -18,6 +19,12 @@ export default async function AdminPage() {
       <p className="text-zinc-600">
         この画面はadminロールのユーザーのみアクセスできます。
       </p>
+      <Link
+        href="/admin/excel-import"
+        className="inline-block rounded-md bg-zinc-900 px-4 py-2 text-white transition-colors hover:bg-zinc-800"
+      >
+        Excelアップロード
+      </Link>
     </main>
   );
 }

@@ -46,3 +46,6 @@ next-env.d.ts
 
 # secrets accidentally saved locally
 recovery-codes.txt
+
+# local-only notes (credentials, etc.) - never commit
+.local/
