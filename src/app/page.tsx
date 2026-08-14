@@ -5,7 +5,6 @@ import { getCurrentUserAndProfile } from "@/lib/current-user";
 import { isValidDateString, todayInTokyo } from "@/lib/board-date";
 import type { BoardMeal } from "@/lib/board-types";
 import SignOutButton from "@/components/sign-out-button";
-import DateBar from "@/components/date-bar";
 import DayBoardRealtime from "@/components/day-board-realtime";
 
 export default async function HomePage({
@@ -52,17 +51,13 @@ export default async function HomePage({
         </div>
       </div>
 
-      <DateBar date={date} />
-
       {error && (
         <p className="rounded-md border border-red-200 bg-red-50 p-4 text-red-700">
           食数データの取得に失敗しました: {error.message}
         </p>
       )}
 
-      {!error && (
-        <DayBoardRealtime date={date} initialBoard={(board ?? []) as BoardMeal[]} />
-      )}
+      <DayBoardRealtime date={date} initialBoard={(board ?? []) as BoardMeal[]} />
     </main>
   );
 }

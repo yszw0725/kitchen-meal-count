@@ -40,11 +40,15 @@ export default function EmergencyEditClient({
     new Set(defaultMeals),
   );
   const [overrides, setOverrides] = useState(initialOverrides);
-  const [pendingId, setPendingId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; onUndo: () => void } | null>(
     null,
   );
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 利用者ごとにAPI呼び出しを直列化するチェーン。楽観的UIで画面は即座に
+  // 更新するが、連打時にサーバーへのリクエストが並行実行されると
+  // toggle APIの読み取り→書き込みが競合し、意図しない状態(残留/二重)に
+  // なり得るため、同一利用者への呼び出しは常に前回完了後に送る。
+  const pendingChains = useRef<Map<string, Promise<unknown>>>(new Map());
   const online = useOnlineStatus();
 
   useEffect(() => {
@@ -97,31 +101,38 @@ export default function EmergencyEditClient({
     });
   }
 
-  async function handleTap(resident: Resident) {
-    if (pendingId || !online) return;
+  function handleTap(resident: Resident) {
+    if (!online) return;
     const meals = [...selectedMeals];
-    setPendingId(resident.id);
-    try {
-      const result = await callToggle(resident.id, meals);
-      const added = result.action === "added";
-      applyLocalOverride(resident.id, meals, added);
+    const wasMarked = meals.every((m) => overrides[resident.id]?.includes(m));
+    const willAdd = !wasMarked;
+    const isGhResident = isGhGroupName(
+      groups.find((g) => g.id === resident.group_id)?.short_name ?? "",
+    );
+    const verb = isGhResident ? "食べる人" : "お休み";
+    const mealLabel = meals.map((m) => MEAL_LABEL[m]).join("・");
 
-      const verb = result.type === "present" ? "食べる人" : "お休み";
-      const message = added
-        ? `たった今 ${result.residentName} さんを${result.mealLabel}${verb}に登録しました`
-        : `たった今 ${result.residentName} さんの${result.mealLabel}の登録を取り消しました`;
+    // 楽観的UI: サーバー応答を待たず、タップした瞬間に画面とトーストを確定する (§6.4)
+    applyLocalOverride(resident.id, meals, willAdd);
+    const message = willAdd
+      ? `たった今 ${resident.name} さんを${mealLabel}${verb}に登録しました`
+      : `たった今 ${resident.name} さんの${mealLabel}の登録を取り消しました`;
+    showToast(message, () => handleTap(resident));
 
-      showToast(message, async () => {
-        // 直前の操作を反転させる (事後取り消し)
-        const undone = await callToggle(resident.id, meals);
-        applyLocalOverride(resident.id, meals, undone.action === "added");
-        setToast(null);
+    // 裏でAPIを呼ぶ。失敗した場合のみ画面を元に戻す。
+    // 同一利用者への直前の呼び出しが終わってから送る(連打時の競合防止)。
+    const previous = pendingChains.current.get(resident.id) ?? Promise.resolve();
+    const next = previous
+      .catch(() => {})
+      .then(() => callToggle(resident.id, meals))
+      .catch((e) => {
+        applyLocalOverride(resident.id, meals, !willAdd);
+        showToast(
+          e instanceof Error ? e.message : "登録に失敗しました。通信環境をご確認ください。",
+          () => {},
+        );
       });
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : "登録に失敗しました。", () => {});
-    } finally {
-      setPendingId(null);
-    }
+    pendingChains.current.set(resident.id, next);
   }
 
   const selectedGroup = groups.find((g) => g.id === selectedGroupId) ?? null;
@@ -205,7 +216,7 @@ export default function EmergencyEditClient({
                 <button
                   key={r.id}
                   onClick={() => handleTap(r)}
-                  disabled={pendingId === r.id || !online}
+                  disabled={!online}
                   className={`flex w-full items-center justify-between rounded-lg border px-4 py-4 text-left text-lg transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                     marked
                       ? "border-amber-400 bg-amber-50"
