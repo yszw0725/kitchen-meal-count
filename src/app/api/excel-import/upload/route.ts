@@ -17,7 +17,10 @@ export async function POST(request: NextRequest) {
 
   const buffer = Buffer.from(await file.arrayBuffer());
   const batchId = randomUUID();
-  const storagePath = `${batchId}/${file.name}`;
+  // Storageの保存キーは元ファイル名(日本語等を含みうる)を直接使わず、
+  // UUID(ASCII安全)のみで構成する。元のファイル名は表示用として
+  // import_batches.original_filename に別途保存する。
+  const storagePath = `${batchId}.xlsx`;
 
   const { error: uploadError } = await service.storage
     .from("excel-imports")
