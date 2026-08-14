@@ -1,16 +1,16 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { addDays, formatDateLabel, todayInTokyo } from "@/lib/board-date";
 
-export default function DateBar({ date }: { date: string }) {
-  const router = useRouter();
+export default function DateBar({
+  date,
+  onDateChange,
+}: {
+  date: string;
+  onDateChange: (newDate: string) => void;
+}) {
   const today = todayInTokyo();
   const isToday = date === today;
-
-  function goTo(newDate: string) {
-    router.push(`/?date=${newDate}`);
-  }
 
   return (
     <div
@@ -22,7 +22,7 @@ export default function DateBar({ date }: { date: string }) {
     >
       <div className="flex items-center gap-3">
         <button
-          onClick={() => goTo(addDays(date, -1))}
+          onClick={() => onDateChange(addDays(date, -1))}
           aria-label="前日"
           className="flex h-14 w-14 items-center justify-center rounded-md border border-zinc-300 text-xl hover:bg-zinc-100"
         >
@@ -36,14 +36,14 @@ export default function DateBar({ date }: { date: string }) {
           <input
             type="date"
             value={date}
-            onChange={(e) => e.target.value && goTo(e.target.value)}
+            onChange={(e) => e.target.value && onDateChange(e.target.value)}
             className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
             aria-label="日付を選択"
           />
         </label>
 
         <button
-          onClick={() => goTo(addDays(date, 1))}
+          onClick={() => onDateChange(addDays(date, 1))}
           aria-label="翌日"
           className="flex h-14 w-14 items-center justify-center rounded-md border border-zinc-300 text-xl hover:bg-zinc-100"
         >
@@ -58,7 +58,7 @@ export default function DateBar({ date }: { date: string }) {
           </span>
         )}
         <button
-          onClick={() => goTo(today)}
+          onClick={() => onDateChange(today)}
           disabled={isToday}
           className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
         >

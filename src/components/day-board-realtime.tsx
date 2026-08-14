@@ -5,6 +5,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import type { BoardMeal } from "@/lib/board-types";
 import { useOnlineStatus } from "@/lib/use-online-status";
+import DateBar from "@/components/date-bar";
 import DayBoardView from "@/components/day-board-view";
 import ConnectionIndicator from "@/components/connection-indicator";
 import OfflineBanner from "@/components/offline-banner";
@@ -40,24 +41,31 @@ function diffHighlightKeys(prev: BoardMeal[], next: BoardMeal[]): Set<string> {
 }
 
 export default function DayBoardRealtime({
-  date,
+  date: initialDate,
   initialBoard,
 }: {
   date: string;
   initialBoard: BoardMeal[];
 }) {
+  // 日付切替はページ遷移(サーバーラウンドトリップ)を経由せず、クライアント側で
+  // 直接get_day_boardを呼び直す。dateはこのコンポーネントが所有するstateとし、
+  // URLはhistory.replaceStateで見た目だけ同期する(Next.jsのナビゲーションは
+  // 発生させない = 日付切替のたびにauthチェック等を含むサーバー往復をしない)。
+  const [date, setDate] = useState(initialDate);
   const [board, setBoard] = useState(initialBoard);
+  const [dateLoading, setDateLoading] = useState(false);
   const [channelOnline, setChannelOnline] = useState(true);
   const browserOnline = useOnlineStatus();
   const online = channelOnline && browserOnline;
   const [lastUpdated, setLastUpdated] = useState(() => new Date());
   const [highlightKeys, setHighlightKeys] = useState<Set<string>>(new Set());
 
-  // 表示中の日付が変わったら、サーバーから渡された最新データで表示し直す
-  // (レンダー中にstateを調整するReact推奨パターン。エフェクトは使わない)
-  const [renderedDate, setRenderedDate] = useState(date);
-  if (date !== renderedDate) {
-    setRenderedDate(date);
+  // 初回サーバー描画時のdate/initialBoardが変わった場合(直接URLアクセス等)は
+  // それで表示し直す (レンダー中にstateを調整するReact推奨パターン)
+  const [renderedInitialDate, setRenderedInitialDate] = useState(initialDate);
+  if (initialDate !== renderedInitialDate) {
+    setRenderedInitialDate(initialDate);
+    setDate(initialDate);
     setBoard(initialBoard);
     setHighlightKeys(new Set());
     setLastUpdated(new Date());
@@ -95,6 +103,26 @@ export default function DayBoardRealtime({
         HIGHLIGHT_DURATION_MS,
       );
     }
+  }, []);
+
+  const handleDateChange = useCallback((newDate: string) => {
+    dateRef.current = newDate; // refetch等が即座に新しい日付を参照できるようにする
+    setDate(newDate);
+    setHighlightKeys(new Set()); // 別日への切替なのでハイライトは意味を持たない
+    window.history.replaceState(null, "", `/?date=${newDate}`);
+
+    setDateLoading(true);
+    (async () => {
+      const supabase = createClient();
+      const { data, error } = await supabase.rpc("get_day_board", { p_date: newDate });
+      if (!error && data) {
+        const nextBoard = data as BoardMeal[];
+        setBoard(nextBoard);
+        boardRef.current = nextBoard;
+        setLastUpdated(new Date());
+      }
+      setDateLoading(false);
+    })();
   }, []);
 
   useEffect(() => {
@@ -148,9 +176,15 @@ export default function DayBoardRealtime({
 
   return (
     <div className="space-y-4">
+      <DateBar date={date} onDateChange={handleDateChange} />
+
       {!online && <OfflineBanner />}
 
-      <DayBoardView date={date} board={board} highlightKeys={highlightKeys} />
+      <div
+        className={`transition-opacity duration-150 ${dateLoading ? "opacity-60" : "opacity-100"}`}
+      >
+        <DayBoardView date={date} board={board} highlightKeys={highlightKeys} />
+      </div>
 
       <div className="flex justify-center pt-4">
         {online ? (
