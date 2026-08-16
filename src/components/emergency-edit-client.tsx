@@ -2,8 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
+import { todayInTokyo } from "@/lib/board-date";
 import {
   MEAL_LABEL,
+  defaultEmergencyMeals,
   isGhGroupName,
   mealFormSuffix,
   type MealType,
@@ -22,24 +25,16 @@ type Resident = {
 
 const MEAL_ORDER: MealType[] = ["breakfast", "lunch", "dinner"];
 
-export default function EmergencyEditClient({
-  dateLabel,
-  groups,
-  residents,
-  initialOverrides,
-  defaultMeals,
-}: {
-  dateLabel: string;
-  groups: Group[];
-  residents: Resident[];
-  initialOverrides: Record<string, MealType[]>;
-  defaultMeals: MealType[];
-}) {
+export default function EmergencyEditClient({ dateLabel }: { dateLabel: string }) {
+  const [dataLoading, setDataLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [residents, setResidents] = useState<Resident[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [selectedMeals, setSelectedMeals] = useState<Set<MealType>>(
-    new Set(defaultMeals),
+    () => new Set(defaultEmergencyMeals()),
   );
-  const [overrides, setOverrides] = useState(initialOverrides);
+  const [overrides, setOverrides] = useState<Record<string, MealType[]>>({});
   const [toast, setToast] = useState<{ message: string; onUndo: () => void } | null>(
     null,
   );
@@ -54,6 +49,51 @@ export default function EmergencyEditClient({
   useEffect(() => {
     return () => {
       if (toastTimer.current) clearTimeout(toastTimer.current);
+    };
+  }, []);
+
+  // 区分・利用者・当日の緊急上書きは、Next.jsサーバーを経由せずクライアントから
+  // Supabaseへ直接問い合わせる(S3の日付切替と同じ方式)。開いた瞬間に見た目は表示し、
+  // 一覧はデータ到着後に埋める。
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const today = todayInTokyo();
+      const [groupsRes, residentsRes, overridesRes] = await Promise.all([
+        supabase
+          .from("resident_groups")
+          .select("id, short_name, sort_order")
+          .eq("is_active", true)
+          .order("sort_order"),
+        supabase
+          .from("residents")
+          .select("id, name, kana, group_id, meal_form")
+          .is("left_on", null)
+          .order("kana", { nullsFirst: false })
+          .order("name"),
+        supabase.from("kitchen_overrides").select("resident_id, meal").eq("date", today),
+      ]);
+      if (cancelled) return;
+
+      if (groupsRes.error || residentsRes.error || overridesRes.error) {
+        setLoadError("データの取得に失敗しました。通信環境をご確認のうえ再読み込みしてください。");
+        setDataLoading(false);
+        return;
+      }
+
+      const overridesByResident: Record<string, MealType[]> = {};
+      for (const o of overridesRes.data ?? []) {
+        (overridesByResident[o.resident_id] ??= []).push(o.meal);
+      }
+
+      setGroups(groupsRes.data ?? []);
+      setResidents(residentsRes.data ?? []);
+      setOverrides(overridesByResident);
+      setDataLoading(false);
+    })();
+    return () => {
+      cancelled = true;
     };
   }, []);
 
@@ -156,7 +196,15 @@ export default function EmergencyEditClient({
 
       {!online && <OfflineBanner message="通信復旧後に操作できます。" />}
 
-      {!selectedGroup && (
+      {loadError && (
+        <p className="rounded-md border border-red-200 bg-red-50 p-4 text-red-700">{loadError}</p>
+      )}
+
+      {dataLoading && !loadError && (
+        <p className="p-4 text-center text-zinc-400">読み込み中…</p>
+      )}
+
+      {!dataLoading && !loadError && !selectedGroup && (
         <div className="grid grid-cols-2 gap-4">
           {groups.map((g) => (
             <button

@@ -175,18 +175,24 @@ export default function DayBoardRealtime({
   }, [browserOnline, refetch]);
 
   return (
-    <div className="space-y-4">
-      <DateBar date={date} onDateChange={handleDateChange} />
+    <div className="flex flex-1 flex-col space-y-4 compact:min-h-0 compact:space-y-2">
+      <div className="shrink-0">
+        <DateBar date={date} onDateChange={handleDateChange} />
+      </div>
 
-      {!online && <OfflineBanner />}
+      {!online && (
+        <div className="shrink-0">
+          <OfflineBanner />
+        </div>
+      )}
 
       <div
-        className={`transition-opacity duration-150 ${dateLoading ? "opacity-60" : "opacity-100"}`}
+        className={`flex-1 transition-opacity duration-150 compact:min-h-0 ${dateLoading ? "opacity-60" : "opacity-100"}`}
       >
         <DayBoardView date={date} board={board} highlightKeys={highlightKeys} />
       </div>
 
-      <div className="flex justify-center pt-4">
+      <div className="flex shrink-0 justify-center pt-4 compact:pt-0">
         {online ? (
           <Link
             href="/emergency-edit"

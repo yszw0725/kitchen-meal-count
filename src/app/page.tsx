@@ -28,8 +28,8 @@ export default async function HomePage({
   });
 
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 space-y-4 p-4">
-      <div className="flex items-center justify-between">
+    <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col space-y-4 p-4 compact:h-dvh compact:space-y-2 compact:overflow-hidden compact:p-3">
+      <div className="flex shrink-0 items-center justify-between">
         <h1 className="text-xl font-bold text-zinc-900">厨房食数管理</h1>
         <div className="flex items-center gap-3">
           <span className="text-sm text-zinc-500">
@@ -52,7 +52,7 @@ export default async function HomePage({
       </div>
 
       {error && (
-        <p className="rounded-md border border-red-200 bg-red-50 p-4 text-red-700">
+        <p className="shrink-0 rounded-md border border-red-200 bg-red-50 p-4 text-red-700">
           食数データの取得に失敗しました: {error.message}
         </p>
       )}
