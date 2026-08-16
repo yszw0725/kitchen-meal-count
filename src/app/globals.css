@@ -4,6 +4,11 @@
    1920×1200のような高さに余裕がある横画面では発火させない。 */
 @custom-variant compact (@media (orientation: landscape) and (max-height: 900px));
 
+/* 縦向き表示向け。3カラムだった食事カードを縦に積む都合上、横画面の
+   compactと同様に余白・数字サイズを圧縮する(縦向きは高さに余裕があっても
+   3枚積むと合計は大きくなるため、高さ条件を付けず常に発火させる)。 */
+@custom-variant portrait (@media (orientation: portrait));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;

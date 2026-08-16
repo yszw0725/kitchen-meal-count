@@ -43,27 +43,27 @@ function MealCard({
   const totalHighlighted = highlightKeys.has(`${mealData.meal}:total`);
 
   return (
-    <div className="flex min-h-[640px] flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white compact:h-full compact:min-h-0">
+    <div className="flex min-h-[640px] flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white compact:h-full compact:min-h-0 portrait:min-h-0">
       <div
-        className={`border-b border-zinc-100 px-4 py-3 text-center transition-colors duration-700 compact:py-1.5 ${
+        className={`border-b border-zinc-100 px-4 py-3 text-center transition-colors duration-700 compact:py-1.5 portrait:py-1.5 ${
           totalHighlighted ? "bg-amber-100" : ""
         }`}
       >
         <p className="text-sm font-medium text-zinc-500">{MEAL_LABEL[mealData.meal]}</p>
-        <p className="text-7xl font-bold tabular-nums text-zinc-900 compact:text-6xl">
+        <p className="text-7xl font-bold tabular-nums text-zinc-900 compact:text-6xl portrait:text-6xl">
           {mealData.cooking_total}
           <span className="ml-1 text-xl font-medium text-zinc-500">食</span>
         </p>
       </div>
 
-      <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3 compact:space-y-1.5 compact:py-1.5">
+      <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3 compact:space-y-1.5 compact:py-1.5 portrait:space-y-1.5 portrait:py-1.5">
         {mealData.groups.map((g) => {
           const groupHighlighted = highlightKeys.has(`${mealData.meal}:${g.group_id}`);
           return (
             <button
               key={g.group_id}
               onClick={() => onSelectGroup(g)}
-              className={`w-full rounded-md p-2 text-left transition-colors duration-700 hover:bg-zinc-50 compact:p-1.5 ${
+              className={`w-full rounded-md p-2 text-left transition-colors duration-700 hover:bg-zinc-50 compact:p-1.5 portrait:p-1.5 ${
                 groupHighlighted ? "bg-amber-100" : ""
               }`}
             >
@@ -76,7 +76,7 @@ function MealCard({
                     </span>
                   )}
                 </span>
-                <span className="text-3xl font-semibold tabular-nums text-zinc-900 compact:text-2xl">
+                <span className="text-3xl font-semibold tabular-nums text-zinc-900 compact:text-2xl portrait:text-2xl">
                   {g.actual_count}
                 </span>
               </div>
@@ -86,7 +86,7 @@ function MealCard({
         })}
       </div>
 
-      <div className="space-y-1 border-t border-zinc-100 px-4 py-3 text-sm text-zinc-600 compact:py-1.5">
+      <div className="space-y-1 border-t border-zinc-100 px-4 py-3 text-sm text-zinc-600 compact:py-1.5 portrait:py-1.5">
         <div className="flex justify-between">
           <span>利用者計</span>
           <span className="tabular-nums">{mealData.resident_total}</span>
@@ -187,8 +187,8 @@ export default function DayBoardView({
   );
 
   return (
-    <div className="compact:flex compact:h-full compact:min-h-0 compact:flex-col">
-      <div className="grid grid-cols-3 gap-4 compact:min-h-0 compact:flex-1 compact:grid-rows-1">
+    <div className="compact:flex compact:h-full compact:min-h-0 compact:flex-col portrait:h-full portrait:min-h-0 portrait:overflow-y-auto">
+      <div className="grid grid-cols-3 gap-4 compact:min-h-0 compact:flex-1 compact:grid-rows-1 portrait:grid-cols-1 portrait:gap-2">
         {board.map((m) => (
           <MealCard
             key={m.meal}
