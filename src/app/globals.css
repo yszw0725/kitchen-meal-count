@@ -1,13 +1,18 @@
 @import "tailwindcss";
 
-/* 12インチタブレット横向き(高さが窮屈な機種)向けに余白を圧縮するバリアント。
+/* 3カラムの食事カードを画面内に収めるため余白を圧縮するバリアント。
+   - 横向きで高さが窮屈な機種(12インチタブレット横向き等、max-height:900px)
+   - 縦向き全般(3カラムを維持したまま縦長画面に収めるため、幅が
+     狭くなる縦向きでは高さに余裕があっても常に圧縮する)
    1920×1200のような高さに余裕がある横画面では発火させない。 */
-@custom-variant compact (@media (orientation: landscape) and (max-height: 900px));
-
-/* 縦向き表示向け。3カラムだった食事カードを縦に積む都合上、横画面の
-   compactと同様に余白・数字サイズを圧縮する(縦向きは高さに余裕があっても
-   3枚積むと合計は大きくなるため、高さ条件を付けず常に発火させる)。 */
-@custom-variant portrait (@media (orientation: portrait));
+@custom-variant compact {
+  @media (orientation: landscape) and (max-height: 900px) {
+    @slot;
+  }
+  @media (orientation: portrait) {
+    @slot;
+  }
+}
 
 :root {
   --background: #ffffff;
