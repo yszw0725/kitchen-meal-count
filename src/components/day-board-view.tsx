@@ -43,7 +43,7 @@ function MealCard({
   const totalHighlighted = highlightKeys.has(`${mealData.meal}:total`);
 
   return (
-    <div className="flex min-h-[640px] flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white compact:h-full compact:min-h-0">
+    <div className="flex flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white">
       <div
         className={`border-b border-zinc-100 px-4 py-3 text-center transition-colors duration-700 compact:py-1.5 ${
           totalHighlighted ? "bg-amber-100" : ""
@@ -56,7 +56,7 @@ function MealCard({
         </p>
       </div>
 
-      <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3 compact:space-y-1.5 compact:py-1.5">
+      <div className="space-y-3 px-4 py-3 compact:space-y-1.5 compact:py-1.5">
         {mealData.groups.map((g) => {
           const groupHighlighted = highlightKeys.has(`${mealData.meal}:${g.group_id}`);
           return (
@@ -187,8 +187,8 @@ export default function DayBoardView({
   );
 
   return (
-    <div className="compact:flex compact:h-full compact:min-h-0 compact:flex-col">
-      <div className="grid grid-cols-3 gap-4 compact:min-h-0 compact:flex-1 compact:grid-rows-1">
+    <div>
+      <div className="grid grid-cols-3 items-start gap-4">
         {board.map((m) => (
           <MealCard
             key={m.meal}
