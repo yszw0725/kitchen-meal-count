@@ -16,6 +16,7 @@ const WATCHED_TABLES = [
   "meal_exceptions",
   "daily_meal_extras",
   "kitchen_overrides",
+  "kitchen_visitor_overrides",
   "residents",
 ] as const;
 
@@ -192,7 +193,7 @@ export default function DayBoardRealtime({
         <DayBoardView date={date} board={board} highlightKeys={highlightKeys} />
       </div>
 
-      <div className="flex shrink-0 justify-center pt-4 compact:pt-0">
+      <div className="flex shrink-0 flex-wrap justify-center gap-3 pt-4 compact:pt-0">
         {online ? (
           <Link
             href="/emergency-edit"
@@ -203,6 +204,18 @@ export default function DayBoardRealtime({
         ) : (
           <span className="cursor-not-allowed rounded-lg bg-zinc-300 px-6 py-3 text-base font-medium text-zinc-500">
             ＋ 欠食・喫食を登録（通信復旧後に操作できます）
+          </span>
+        )}
+        {online ? (
+          <Link
+            href="/visitor-count"
+            className="rounded-lg border border-zinc-300 bg-white px-6 py-3 text-base font-medium text-zinc-900 hover:bg-zinc-50"
+          >
+            来客数を変更
+          </Link>
+        ) : (
+          <span className="cursor-not-allowed rounded-lg border border-zinc-200 bg-zinc-100 px-6 py-3 text-base font-medium text-zinc-400">
+            来客数を変更（通信復旧後に操作できます）
           </span>
         )}
       </div>
