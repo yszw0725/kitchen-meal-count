@@ -51,7 +51,7 @@ export default async function HomePage({
     : null;
 
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col space-y-4 p-4 compact:flex-none compact:h-dvh compact:space-y-2 compact:overflow-hidden compact:p-3 portrait:flex-none portrait:h-dvh portrait:space-y-2 portrait:overflow-hidden portrait:p-3">
+    <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col space-y-4 p-4 compact:flex-none compact:h-dvh compact:space-y-2 compact:overflow-hidden compact:p-3">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-4">
           <h1 className="text-xl font-bold text-zinc-900">厨房食数管理</h1>
