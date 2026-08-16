@@ -176,7 +176,7 @@ export default function DayBoardRealtime({
   }, [browserOnline, refetch]);
 
   return (
-    <div className="flex flex-1 flex-col space-y-4 compact:min-h-0 compact:space-y-2">
+    <div className="flex flex-1 flex-col space-y-4 compact:min-h-0 compact:space-y-2 portrait:min-h-0 portrait:space-y-2">
       <div className="shrink-0">
         <DateBar date={date} onDateChange={handleDateChange} />
       </div>
@@ -188,12 +188,12 @@ export default function DayBoardRealtime({
       )}
 
       <div
-        className={`flex-1 transition-opacity duration-150 compact:min-h-0 ${dateLoading ? "opacity-60" : "opacity-100"}`}
+        className={`flex-1 transition-opacity duration-150 compact:min-h-0 portrait:min-h-0 ${dateLoading ? "opacity-60" : "opacity-100"}`}
       >
         <DayBoardView date={date} board={board} highlightKeys={highlightKeys} />
       </div>
 
-      <div className="flex shrink-0 flex-wrap justify-center gap-3 pt-4 compact:pt-0">
+      <div className="flex shrink-0 flex-wrap justify-center gap-3 pt-4 compact:pt-0 portrait:pt-0">
         {online ? (
           <Link
             href="/emergency-edit"

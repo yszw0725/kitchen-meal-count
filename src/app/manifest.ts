@@ -7,7 +7,7 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "厨房食数管理プラットフォーム",
     start_url: "/",
     display: "standalone",
-    orientation: "landscape",
+    orientation: "any",
     background_color: "#fafafa",
     theme_color: "#18181b",
     icons: [
