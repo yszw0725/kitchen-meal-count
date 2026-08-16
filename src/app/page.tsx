@@ -50,42 +50,48 @@ export default async function HomePage({
       }
     : null;
 
+  // 縦向き表示は横向きレイアウトを一切変更せず、基準幅1280px
+  // (S2_LANDSCAPE_REFERENCE_WIDTH)で描画した内容全体をtransform: scale
+  // で画面幅に合わせて縮小表示する。個々の要素の文字サイズや余白を
+  // 縦向き向けに作り直すことはしない。
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col space-y-4 p-4 compact:flex-none compact:h-dvh compact:space-y-2 compact:overflow-hidden compact:p-3">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-4">
-          <h1 className="text-xl font-bold text-zinc-900">厨房食数管理</h1>
-          <DocumentLinks documents={(documents ?? []) as DocumentRow[]} />
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-zinc-500">
-            {profile?.display_name ?? user.email}（
-            {role === "admin" ? "管理者" : "厨房"}）
-          </span>
-          <Link href="/history" className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm">
-            履歴
-          </Link>
-          {role === "admin" && (
-            <Link
-              href="/admin"
-              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm"
-            >
-              管理者画面
+    <div className="contents portrait:flex portrait:h-dvh portrait:flex-col portrait:overflow-hidden">
+      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col space-y-4 p-4 compact:flex-none compact:h-dvh compact:space-y-2 compact:overflow-hidden compact:p-3 portrait:mx-0 portrait:w-[1280px] portrait:max-w-none portrait:flex-none portrait:origin-top-left portrait:[transform:scale(calc(100vw/1280px))]">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-4">
+            <h1 className="text-xl font-bold text-zinc-900">厨房食数管理</h1>
+            <DocumentLinks documents={(documents ?? []) as DocumentRow[]} />
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-zinc-500">
+              {profile?.display_name ?? user.email}（
+              {role === "admin" ? "管理者" : "厨房"}）
+            </span>
+            <Link href="/history" className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm">
+              履歴
             </Link>
-          )}
-          <SignOutButton />
+            {role === "admin" && (
+              <Link
+                href="/admin"
+                className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm"
+              >
+                管理者画面
+              </Link>
+            )}
+            <SignOutButton />
+          </div>
         </div>
-      </div>
 
-      <AnnouncementBanner initialLatest={initialLatest} />
+        <AnnouncementBanner initialLatest={initialLatest} />
 
-      {error && (
-        <p className="shrink-0 rounded-md border border-red-200 bg-red-50 p-4 text-red-700">
-          食数データの取得に失敗しました: {error.message}
-        </p>
-      )}
+        {error && (
+          <p className="shrink-0 rounded-md border border-red-200 bg-red-50 p-4 text-red-700">
+            食数データの取得に失敗しました: {error.message}
+          </p>
+        )}
 
-      <DayBoardRealtime date={date} initialBoard={(board ?? []) as BoardMeal[]} />
-    </main>
+        <DayBoardRealtime date={date} initialBoard={(board ?? []) as BoardMeal[]} />
+      </main>
+    </div>
   );
 }
