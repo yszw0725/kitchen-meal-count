@@ -188,7 +188,7 @@ export default function DayBoardView({
 
   return (
     <div>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 items-start gap-4">
         {board.map((m) => (
           <MealCard
             key={m.meal}
