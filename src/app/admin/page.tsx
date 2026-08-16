@@ -57,12 +57,6 @@ export default async function AdminPage() {
           ユーザー管理
         </Link>
         <Link
-          href="/admin/documents"
-          className="rounded-md border border-zinc-300 px-4 py-2 text-zinc-800 transition-colors hover:bg-zinc-50"
-        >
-          資料アップロード
-        </Link>
-        <Link
           href="/history"
           className="rounded-md border border-zinc-300 px-4 py-2 text-zinc-800 transition-colors hover:bg-zinc-50"
         >
