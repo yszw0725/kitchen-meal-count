@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* 12インチタブレット横向き(高さが窮屈な機種)向けに余白を圧縮するバリアント。
+   1920×1200のような高さに余裕がある横画面では発火させない。 */
+@custom-variant compact (@media (orientation: landscape) and (max-height: 900px));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -23,4 +27,22 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* タップ可能要素の共通フィードバック。JSの処理完了を待たず、指を触れた瞬間に
+   :active(CSSのみ)で反応させる。タップ時に残るブラウザ標準のハイライトは
+   自前のフィードバックと二重になるため無効化する。 */
+button:not(:disabled),
+a,
+input[type="date"] {
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    transform 100ms ease-out,
+    filter 100ms ease-out;
+}
+
+button:not(:disabled):active,
+a:active {
+  transform: scale(0.96);
+  filter: brightness(0.92);
 }

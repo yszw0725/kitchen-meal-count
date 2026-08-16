@@ -14,7 +14,7 @@ export default function DateBar({
 
   return (
     <div
-      className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3 ${
+      className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3 compact:py-1.5 ${
         isToday
           ? "border-zinc-200 bg-white"
           : "border-amber-300 bg-amber-50"
@@ -24,7 +24,7 @@ export default function DateBar({
         <button
           onClick={() => onDateChange(addDays(date, -1))}
           aria-label="前日"
-          className="flex h-14 w-14 items-center justify-center rounded-md border border-zinc-300 text-xl hover:bg-zinc-100"
+          className="flex h-14 w-14 items-center justify-center rounded-md border border-zinc-300 text-xl hover:bg-zinc-100 compact:h-10 compact:w-10 compact:text-base"
         >
           ◀
         </button>
@@ -45,7 +45,7 @@ export default function DateBar({
         <button
           onClick={() => onDateChange(addDays(date, 1))}
           aria-label="翌日"
-          className="flex h-14 w-14 items-center justify-center rounded-md border border-zinc-300 text-xl hover:bg-zinc-100"
+          className="flex h-14 w-14 items-center justify-center rounded-md border border-zinc-300 text-xl hover:bg-zinc-100 compact:h-10 compact:w-10 compact:text-base"
         >
           ▶
         </button>

@@ -6,27 +6,9 @@ export const MEAL_LABEL: Record<MealType, string> = {
   dinner: "夕食",
 };
 
-// 妥当な時間帯の閾値(提案): 各食の提供が一段落する時刻を「提供済み」の境界とする。
-// これより前なら「まだ提供前」として自動選択の対象にする。
-const MEAL_CUTOFF_MINUTES: Record<MealType, number> = {
-  breakfast: 8 * 60 + 30, // 08:30
-  lunch: 13 * 60 + 30, // 13:30
-  dinner: 19 * 60 + 30, // 19:30
-};
-
-const MEAL_ORDER: MealType[] = ["breakfast", "lunch", "dinner"];
-
-export function nowMinutesInTokyo(): number {
-  const now = new Date();
-  const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
-  const tokyo = new Date(utcMs + 9 * 60 * 60000);
-  return tokyo.getHours() * 60 + tokyo.getMinutes();
-}
-
-/** まだ提供前の食事区分を返す。全て提供済みの時間帯なら夕食のみを既定にする (未選択状態を避けるため)。 */
-export function defaultUpcomingMeals(nowMinutes: number = nowMinutesInTokyo()): MealType[] {
-  const upcoming = MEAL_ORDER.filter((m) => nowMinutes < MEAL_CUTOFF_MINUTES[m]);
-  return upcoming.length > 0 ? upcoming : ["dinner"];
+/** 急な欠食・臨時喫食の連絡は昼食に集中するため、時間帯に関わらず常に昼食を既定にする。 */
+export function defaultEmergencyMeals(): MealType[] {
+  return ["lunch"];
 }
 
 export function isGhGroupName(shortName: string): boolean {
