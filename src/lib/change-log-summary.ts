@@ -91,6 +91,8 @@ export function summarizeChangeLog(row: ChangeLogRow, ctx: ChangeLogContext): st
     }
     case "resident_default_meals":
       return "標準喫食パターンを変更";
+    case "shift_notes":
+      return "連絡ノート(掃除当番など)を更新";
     default:
       return `${row.table_name} ${row.action}`;
   }

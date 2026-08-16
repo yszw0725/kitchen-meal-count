@@ -9,6 +9,7 @@ import DateBar from "@/components/date-bar";
 import DayBoardView from "@/components/day-board-view";
 import ConnectionIndicator from "@/components/connection-indicator";
 import OfflineBanner from "@/components/offline-banner";
+import ShiftNotesPanel, { type ShiftNoteInfo } from "@/components/shift-notes-panel";
 
 const POLL_INTERVAL_MS = 5 * 60 * 1000;
 const HIGHLIGHT_DURATION_MS = 1000;
@@ -44,9 +45,13 @@ function diffHighlightKeys(prev: BoardMeal[], next: BoardMeal[]): Set<string> {
 export default function DayBoardRealtime({
   date: initialDate,
   initialBoard,
+  userId,
+  initialShiftNote,
 }: {
   date: string;
   initialBoard: BoardMeal[];
+  userId: string;
+  initialShiftNote: ShiftNoteInfo;
 }) {
   // 日付切替はページ遷移(サーバーラウンドトリップ)を経由せず、クライアント側で
   // 直接get_day_boardを呼び直す。dateはこのコンポーネントが所有するstateとし、
@@ -220,9 +225,7 @@ export default function DayBoardRealtime({
         )}
       </div>
 
-      {/* 日付バー〜カード〜ボタンの下に残る余白をまとめて確保する領域。
-          次段階の連絡ノート機能をここに実装する想定。 */}
-      <div id="notes-area" className="min-h-0 flex-1" />
+      <ShiftNotesPanel userId={userId} initialNote={initialShiftNote} />
 
       <ConnectionIndicator online={online} lastUpdated={lastUpdated} />
     </div>
