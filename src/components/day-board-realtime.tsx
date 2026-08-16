@@ -188,7 +188,7 @@ export default function DayBoardRealtime({
       )}
 
       <div
-        className={`flex-1 transition-opacity duration-150 compact:min-h-0 ${dateLoading ? "opacity-60" : "opacity-100"}`}
+        className={`shrink-0 transition-opacity duration-150 ${dateLoading ? "opacity-60" : "opacity-100"}`}
       >
         <DayBoardView date={date} board={board} highlightKeys={highlightKeys} />
       </div>
@@ -219,6 +219,10 @@ export default function DayBoardRealtime({
           </span>
         )}
       </div>
+
+      {/* 日付バー〜カード〜ボタンの下に残る余白をまとめて確保する領域。
+          次段階の連絡ノート機能をここに実装する想定。 */}
+      <div id="notes-area" className="min-h-0 flex-1" />
 
       <ConnectionIndicator online={online} lastUpdated={lastUpdated} />
     </div>
