@@ -50,7 +50,7 @@ function MealCard({
         }`}
       >
         <p className="text-sm font-medium text-zinc-500">{MEAL_LABEL[mealData.meal]}</p>
-        <p className="text-6xl font-bold tabular-nums text-zinc-900 compact:text-5xl">
+        <p className="text-7xl font-bold tabular-nums text-zinc-900 compact:text-6xl">
           {mealData.cooking_total}
           <span className="ml-1 text-xl font-medium text-zinc-500">食</span>
         </p>
@@ -76,7 +76,7 @@ function MealCard({
                     </span>
                   )}
                 </span>
-                <span className="text-2xl font-semibold tabular-nums text-zinc-900 compact:text-xl">
+                <span className="text-3xl font-semibold tabular-nums text-zinc-900 compact:text-2xl">
                   {g.actual_count}
                 </span>
               </div>
