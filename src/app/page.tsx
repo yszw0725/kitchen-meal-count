@@ -4,8 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserAndProfile } from "@/lib/current-user";
 import { isValidDateString, todayInTokyo } from "@/lib/board-date";
 import type { BoardMeal } from "@/lib/board-types";
+import type { AnnouncementRow } from "@/lib/announcements";
 import SignOutButton from "@/components/sign-out-button";
 import DayBoardRealtime from "@/components/day-board-realtime";
+import AnnouncementBanner from "@/components/announcement-banner";
 
 export default async function HomePage({
   searchParams,
@@ -23,9 +25,26 @@ export default async function HomePage({
   const role = profile?.role ?? "kitchen";
 
   const supabase = await createClient();
-  const { data: board, error } = await supabase.rpc("get_day_board", {
-    p_date: date,
-  });
+  const [{ data: board, error }, { data: latestAnnouncement }] = await Promise.all([
+    supabase.rpc("get_day_board", { p_date: date }),
+    supabase
+      .from("announcements")
+      .select("id, content, created_at, profiles(display_name)")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  const initialLatest: AnnouncementRow | null = latestAnnouncement
+    ? {
+        id: latestAnnouncement.id,
+        content: latestAnnouncement.content,
+        created_at: latestAnnouncement.created_at,
+        poster_name:
+          (latestAnnouncement.profiles as unknown as { display_name: string } | null)
+            ?.display_name ?? "管理者",
+      }
+    : null;
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col space-y-4 p-4 compact:h-dvh compact:space-y-2 compact:overflow-hidden compact:p-3">
@@ -50,6 +69,8 @@ export default async function HomePage({
           <SignOutButton />
         </div>
       </div>
+
+      <AnnouncementBanner initialLatest={initialLatest} />
 
       {error && (
         <p className="shrink-0 rounded-md border border-red-200 bg-red-50 p-4 text-red-700">
