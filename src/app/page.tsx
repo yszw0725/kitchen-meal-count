@@ -4,8 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserAndProfile } from "@/lib/current-user";
 import { isValidDateString, todayInTokyo } from "@/lib/board-date";
 import type { BoardMeal } from "@/lib/board-types";
+import type { DocumentRow } from "@/lib/documents";
 import SignOutButton from "@/components/sign-out-button";
 import DayBoardRealtime from "@/components/day-board-realtime";
+import DocumentLinks from "@/components/document-links";
 
 export default async function HomePage({
   searchParams,
@@ -23,14 +25,18 @@ export default async function HomePage({
   const role = profile?.role ?? "kitchen";
 
   const supabase = await createClient();
-  const { data: board, error } = await supabase.rpc("get_day_board", {
-    p_date: date,
-  });
+  const [{ data: board, error }, { data: documents }] = await Promise.all([
+    supabase.rpc("get_day_board", { p_date: date }),
+    supabase.from("documents").select("category, storage_path, original_filename, uploaded_at"),
+  ]);
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col space-y-4 p-4 compact:h-dvh compact:space-y-2 compact:overflow-hidden compact:p-3">
-      <div className="flex shrink-0 items-center justify-between">
-        <h1 className="text-xl font-bold text-zinc-900">厨房食数管理</h1>
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-4">
+          <h1 className="text-xl font-bold text-zinc-900">厨房食数管理</h1>
+          <DocumentLinks documents={(documents ?? []) as DocumentRow[]} />
+        </div>
         <div className="flex items-center gap-3">
           <span className="text-sm text-zinc-500">
             {profile?.display_name ?? user.email}（
