@@ -1,0 +1,22 @@
+-- 献立表・勤務表・連絡ノート設計書 §2.2・§4.4 の通り、documentsテーブル・
+-- documents Storageバケットを廃止する。
+--
+-- - 発注書(purchase_order): 要件により恒久的に廃止(§4.4)。
+-- - 週間献立表(weekly_menu)・勤務表(work_schedule): 「ファイルをそのまま
+--   新しいタブで開く」方式を廃止し、次のタスクでmenu_imports/shift_imports
+--   による解析・専用画面表示に置き換える(§2.2)。新しい仕組みは全く別の
+--   テーブル構成(menu_imports/menu_items, shift_imports/shift_staff/
+--   shift_entries等)で実装されるため、documentsテーブルを流用しない。
+--
+-- 3カテゴリすべてが不要になるため、documentsテーブル・Storageバケット
+-- ごと削除する。
+--
+-- 【注意】Supabaseはstorage.objects/storage.bucketsへの直接SQL DELETEを
+-- トリガー(storage.protect_delete)でブロックしている
+-- (エラー: "Direct deletion from storage tables is not allowed.
+-- Use the Storage API instead.")。そのためdocumentsバケット・その中の
+-- オブジェクトの削除は、このマイグレーションの実行前後にStorage API
+-- (DELETE /storage/v1/object/documents, DELETE /storage/v1/bucket/documents)
+-- を別途叩いて行うこと。このSQLはテーブルの削除のみを行う。
+
+drop table if exists documents;
