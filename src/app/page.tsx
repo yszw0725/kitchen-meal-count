@@ -56,6 +56,12 @@ export default async function HomePage({
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-4">
             <h1 className="text-xl font-bold text-zinc-900">厨房食数管理</h1>
+            <Link
+              href="/shifts"
+              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50"
+            >
+              勤務表
+            </Link>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-sm text-zinc-500">
