@@ -25,15 +25,17 @@ export default async function HomePage({
   const role = profile?.role ?? "kitchen";
 
   const supabase = await createClient();
-  const [{ data: board, error }, { data: latestAnnouncement }] = await Promise.all([
-    supabase.rpc("get_day_board", { p_date: date }),
-    supabase
-      .from("announcements")
-      .select("id, content, created_at, profiles(display_name)")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-  ]);
+  const [{ data: board, error }, { data: latestAnnouncement }, { data: shiftNote }] =
+    await Promise.all([
+      supabase.rpc("get_day_board", { p_date: date }),
+      supabase
+        .from("announcements")
+        .select("id, content, created_at, profiles(display_name)")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase.from("shift_notes").select("content, updated_at").eq("id", true).maybeSingle(),
+    ]);
 
   const initialLatest: AnnouncementRow | null = latestAnnouncement
     ? {
@@ -56,6 +58,12 @@ export default async function HomePage({
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-4">
             <h1 className="text-xl font-bold text-zinc-900">厨房食数管理</h1>
+            <Link
+              href="/menu"
+              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50"
+            >
+              献立表
+            </Link>
             <Link
               href="/shifts"
               className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50"
@@ -91,7 +99,15 @@ export default async function HomePage({
           </p>
         )}
 
-        <DayBoardRealtime date={date} initialBoard={(board ?? []) as BoardMeal[]} />
+        <DayBoardRealtime
+          date={date}
+          initialBoard={(board ?? []) as BoardMeal[]}
+          userId={user.id}
+          initialShiftNote={{
+            content: shiftNote?.content ?? "",
+            updatedAt: shiftNote?.updated_at ?? null,
+          }}
+        />
       </main>
     </div>
   );
