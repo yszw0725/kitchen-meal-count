@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getCurrentUserAndProfile } from "@/lib/current-user";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -43,7 +44,10 @@ export default async function HistoryPage() {
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 space-y-4 p-6">
       <div>
-        <h1 className="text-2xl font-bold text-zinc-900">変更履歴</h1>
+        <Link href="/" className="text-sm text-zinc-600 hover:text-zinc-900">
+          ← 食数表に戻る
+        </Link>
+        <h1 className="mt-1 text-2xl font-bold text-zinc-900">変更履歴</h1>
         <p className="mt-1 text-sm text-zinc-500">直近200件を新しい順に表示しています。</p>
       </div>
 
