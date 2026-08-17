@@ -64,6 +64,12 @@ export default async function HomePage({
             >
               献立表
             </Link>
+            <Link
+              href="/shifts"
+              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50"
+            >
+              勤務表
+            </Link>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-sm text-zinc-500">

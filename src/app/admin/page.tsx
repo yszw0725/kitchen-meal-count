@@ -63,6 +63,12 @@ export default async function AdminPage() {
           週間献立表アップロード
         </Link>
         <Link
+          href="/admin/shift-import"
+          className="rounded-md border border-zinc-300 px-4 py-2 text-zinc-800 transition-colors hover:bg-zinc-50"
+        >
+          勤務表アップロード
+        </Link>
+        <Link
           href="/history"
           className="rounded-md border border-zinc-300 px-4 py-2 text-zinc-800 transition-colors hover:bg-zinc-50"
         >
