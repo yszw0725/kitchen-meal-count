@@ -21,17 +21,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "不正なリクエストです。" }, { status: 400 });
   }
 
-  // kitchen_overrides.date は前日・当日のみ許可(DB側のCHECK制約・RLSと
+  // kitchen_overrides.date は当日〜翌々日のみ許可(DB側のCHECK制約・RLSと
   // 同じ範囲)。クライアントから任意の日付は受け付けない。
   const today = todayInTokyo();
-  const yesterday = addDays(today, -1);
-  if (
-    !requestedDate ||
-    !isValidDateString(requestedDate) ||
-    (requestedDate !== today && requestedDate !== yesterday)
-  ) {
+  const allowedDates = [today, addDays(today, 1), addDays(today, 2)];
+  if (!requestedDate || !isValidDateString(requestedDate) || !allowedDates.includes(requestedDate)) {
     return NextResponse.json(
-      { message: "対象日は前日または当日のみ指定できます。" },
+      { message: "対象日は当日・翌日・翌々日のみ指定できます。" },
       { status: 400 },
     );
   }
