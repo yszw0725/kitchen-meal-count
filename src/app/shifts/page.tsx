@@ -164,6 +164,7 @@ export default async function ShiftsPage() {
   let staff: ShiftStaffRow[] = [];
   let codeMap = new Map<string, string>();
   let noteMap = new Map<string, string>();
+  let dateEventList: ShiftDateEventRow[] = [];
 
   if (latestImport) {
     const [{ data: staffData }, { data: entryData }, { data: dateEventData }] = await Promise.all([
@@ -185,7 +186,10 @@ export default async function ShiftsPage() {
     codeMap = new Map(
       ((entryData ?? []) as ShiftEntryRow[]).map((e) => [`${e.staff_id}|${e.date}`, e.code]),
     );
-    noteMap = new Map(((dateEventData ?? []) as ShiftDateEventRow[]).map((e) => [e.date, e.note]));
+    dateEventList = ((dateEventData ?? []) as ShiftDateEventRow[]).sort((a, b) =>
+      a.date.localeCompare(b.date),
+    );
+    noteMap = new Map(dateEventList.map((e) => [e.date, e.note]));
   }
 
   const codeOf = (staffId: string, date: string) => codeMap.get(`${staffId}|${date}`) ?? "";
@@ -207,7 +211,22 @@ export default async function ShiftsPage() {
         userId={user.id}
         initialNote={{ content: events?.content ?? "", updatedAt: events?.updated_at ?? null }}
         rows={2}
-      />
+      >
+        {dateEventList.length > 0 && (
+          <div className="border-t border-zinc-100 pt-2">
+            <p className="mb-1 text-xs font-medium text-zinc-500">
+              勤務表ファイルから読み取った予定
+            </p>
+            <ul className="space-y-0.5 text-sm text-zinc-700">
+              {dateEventList.map((e) => (
+                <li key={e.date}>
+                  {formatShort(e.date)} {e.note}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </EditableNotePanel>
 
       {!latestImport ? (
         <p className="rounded-lg border border-zinc-200 bg-white p-8 text-center text-zinc-400">

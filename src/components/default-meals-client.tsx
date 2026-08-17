@@ -11,7 +11,9 @@ type Group = { id: string; short_name: string; sort_order: number };
 type DefaultMealRow = { resident_id: string; weekday: number; meal: MealType; eats: boolean };
 
 const MEAL_ORDER: MealType[] = ["breakfast", "lunch", "dinner"];
-const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
+// weekday(DBの値、0=日曜〜6=土曜)は変更せず、表示順のみ月曜始まりにする。
+const WEEKDAY_LABELS_BY_NUMBER = ["日", "月", "火", "水", "木", "金", "土"];
+const WEEKDAY_DISPLAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
 
 export default function DefaultMealsClient({
   residents,
@@ -132,9 +134,9 @@ export default function DefaultMealsClient({
             <thead className="bg-zinc-50">
               <tr>
                 <th className="px-3 py-2 text-left">食事＼曜日</th>
-                {WEEKDAY_LABELS.map((w, i) => (
-                  <th key={i} className="px-3 py-2">
-                    {w}
+                {WEEKDAY_DISPLAY_ORDER.map((weekday) => (
+                  <th key={weekday} className="px-3 py-2">
+                    {WEEKDAY_LABELS_BY_NUMBER[weekday]}
                   </th>
                 ))}
               </tr>
@@ -145,7 +147,7 @@ export default function DefaultMealsClient({
                   <td className="px-3 py-2 text-left font-medium text-zinc-700">
                     {MEAL_LABEL[meal]}
                   </td>
-                  {WEEKDAY_LABELS.map((_, weekday) => {
+                  {WEEKDAY_DISPLAY_ORDER.map((weekday) => {
                     const eats = grid.get(`${weekday}:${meal}`) ?? false;
                     return (
                       <td key={weekday} className="px-2 py-2">
