@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 export type ShiftNoteInfo = {
@@ -32,10 +32,58 @@ export default function ShiftNotesPanel({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // 厨房タブレットは開きっぱなしで運用されるため、他端末からの更新を
+  // リアルタイムに反映する。編集中(入力途中)に反映してdraftが消えて
+  // しまわないよう、editingの最新値をrefで参照する(このeffectはマウント
+  // 時に1度だけ実行するため、クロージャがeditingの初期値を固定してしまう
+  // ことを避けるため)。
+  const editingRef = useRef(editing);
+  useEffect(() => {
+    editingRef.current = editing;
+  }, [editing]);
+
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase.channel("shift-notes-changes");
+
+    channel.on(
+      "postgres_changes",
+      { event: "UPDATE", schema: "public", table: "shift_notes" },
+      (payload) => {
+        if (editingRef.current) return; // 編集中は上書きしない(保存/キャンセル後に最新化)
+        const row = payload.new as { content: string; updated_at: string };
+        setNote({ content: row.content, updatedAt: row.updated_at });
+      },
+    );
+
+    channel.subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   function startEdit() {
     setDraft(note.content);
     setError(null);
     setEditing(true);
+  }
+
+  // 編集中に他端末からの更新イベントを取りこぼしている可能性があるため、
+  // 編集を終える(保存/キャンセルいずれも)たびにDBから読み直して確定させる。
+  // 保存直後の自分の書き込みも、これで正しく反映される。
+  async function refetchNote() {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("shift_notes")
+      .select("content, updated_at")
+      .eq("id", true)
+      .single();
+    if (data) setNote({ content: data.content, updatedAt: data.updated_at });
+  }
+
+  function cancelEdit() {
+    setEditing(false);
+    void refetchNote();
   }
 
   async function handleSave() {
@@ -54,8 +102,8 @@ export default function ShiftNotesPanel({
       setError("保存に失敗しました。通信環境をご確認ください。");
       return;
     }
-    setNote({ content: draft, updatedAt });
     setEditing(false);
+    await refetchNote();
   }
 
   const updatedAtLabel = formatUpdatedAt(note.updatedAt);
@@ -89,7 +137,7 @@ export default function ShiftNotesPanel({
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex gap-2">
             <button
-              onClick={() => setEditing(false)}
+              onClick={cancelEdit}
               disabled={saving}
               className="rounded-md border border-zinc-300 px-4 py-1.5 text-sm"
             >
