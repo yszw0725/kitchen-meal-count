@@ -49,3 +49,6 @@ recovery-codes.txt
 
 # local-only notes (credentials, etc.) - never commit
 .local/
+
+# real sample files containing personal data (staff names etc.) - never commit
+/docs/sample-files/
