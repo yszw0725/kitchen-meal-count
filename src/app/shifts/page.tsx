@@ -38,9 +38,23 @@ function ShiftGrid({
   const leftDates = [...weekDateGroups[0], ...weekDateGroups[1]];
   const rightDates = [...weekDateGroups[2], ...weekDateGroups[3]];
 
+  // table-layout: fixedで職員名列の幅を確定的に確保する(table-layout: auto
+  // だと、全28日付列+職員名列の合計が指定幅を超える際にブラウザの自動配分に
+  // 委ねられ、職員名が想定より狭くなることがあった)。職員名列だけ明示的な
+  // 幅を指定し、残りの日付列(28列)は指定なし=均等割りにする(fixedテーブル
+  // レイアウトの仕様上、幅未指定の列は残り幅を均等に分け合う)。
   return (
     <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white p-2">
-      <table className="w-full border-collapse text-[11px]">
+      <table className="w-full table-fixed border-collapse text-[11px]">
+        <colgroup>
+          {leftDates.map((date) => (
+            <col key={date} />
+          ))}
+          <col className="w-[150px]" />
+          {rightDates.map((date) => (
+            <col key={date} />
+          ))}
+        </colgroup>
         <thead>
           <tr>
             <th
@@ -57,7 +71,7 @@ function ShiftGrid({
             </th>
             <th
               rowSpan={3}
-              className="border border-zinc-200 bg-zinc-100 px-2 py-1 text-center text-xs font-bold whitespace-nowrap text-zinc-700"
+              className="border border-zinc-200 bg-zinc-100 px-2 py-1 text-center text-xs font-bold text-zinc-700"
             >
               職員名
             </th>
@@ -113,7 +127,7 @@ function ShiftGrid({
                   {codeOf(s.id, date)}
                 </td>
               ))}
-              <td className="border border-zinc-200 px-2 py-0.5 text-xs font-bold whitespace-nowrap text-zinc-800">
+              <td className="border border-zinc-200 px-2 py-0.5 text-xs font-bold break-words text-zinc-800">
                 {s.name}
               </td>
               {rightDates.map((date) => (
