@@ -31,7 +31,13 @@ function overrideKey(date: string, residentId: string): string {
 
 export default function EmergencyEditClient() {
   const today = todayInTokyo();
-  const yesterday = addDays(today, -1);
+  const tomorrow = addDays(today, 1);
+  const dayAfterTomorrow = addDays(today, 2);
+  const dateOptions = [
+    { date: today, label: "当日" },
+    { date: tomorrow, label: "翌日" },
+    { date: dayAfterTomorrow, label: "翌々日" },
+  ];
 
   const [dataLoading, setDataLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -61,10 +67,11 @@ export default function EmergencyEditClient() {
     };
   }, []);
 
-  // 区分・利用者・前日/当日の緊急上書きは、Next.jsサーバーを経由せずクライアントから
-  // Supabaseへ直接問い合わせる(S3の日付切替と同じ方式)。開いた瞬間に見た目は表示し、
-  // 一覧はデータ到着後に埋める。前日・当日の2日分をまとめて取得し、日付トグルは
-  // 再フェッチなしでクライアント側の絞り込みだけで切り替える。
+  // 区分・利用者・当日〜翌々日の緊急上書きは、Next.jsサーバーを経由せず
+  // クライアントからSupabaseへ直接問い合わせる(S3の日付切替と同じ方式)。
+  // 開いた瞬間に見た目は表示し、一覧はデータ到着後に埋める。3日分をまとめて
+  // 取得し、日付トグルは再フェッチなしでクライアント側の絞り込みだけで
+  // 切り替える。
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -84,7 +91,7 @@ export default function EmergencyEditClient() {
         supabase
           .from("kitchen_overrides")
           .select("resident_id, meal, date")
-          .in("date", [today, yesterday]),
+          .in("date", [today, tomorrow, dayAfterTomorrow]),
       ]);
       if (cancelled) return;
 
@@ -108,7 +115,7 @@ export default function EmergencyEditClient() {
     return () => {
       cancelled = true;
     };
-  }, [today, yesterday]);
+  }, [today, tomorrow, dayAfterTomorrow]);
 
   function showToast(message: string, onUndo: () => void) {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -166,7 +173,7 @@ export default function EmergencyEditClient() {
     );
     const verb = isGhResident ? "食べる人" : "お休み";
     const mealLabel = meals.map((m) => MEAL_LABEL[m]).join("・");
-    const dayLabel = date === today ? "当日" : "前日";
+    const dayLabel = dateOptions.find((d) => d.date === date)?.label ?? "";
 
     // 楽観的UI: サーバー応答を待たず、タップした瞬間に画面とトーストを確定する (§6.4)
     applyLocalOverride(resident.id, meals, willAdd, date);
@@ -204,7 +211,7 @@ export default function EmergencyEditClient() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-zinc-900">緊急入力</h1>
-          <p className="text-sm text-zinc-500">前日・当日分のみ登録できます</p>
+          <p className="text-sm text-zinc-500">当日・翌日・翌々日分のみ登録できます</p>
         </div>
         <Link href="/" className="rounded-md border border-zinc-300 px-4 py-2 text-sm">
           トップへ戻る
@@ -213,28 +220,20 @@ export default function EmergencyEditClient() {
 
       <div className="flex items-center gap-2">
         <span className="text-sm text-zinc-500">対象日:</span>
-        <button
-          onClick={() => setSelectedDate(yesterday)}
-          disabled={!online}
-          className={`rounded-full border px-4 py-2 text-sm font-medium ${
-            selectedDate === yesterday
-              ? "border-zinc-900 bg-zinc-900 text-white"
-              : "border-zinc-300 bg-white text-zinc-700"
-          }`}
-        >
-          前日（{formatDateLabel(yesterday)}）
-        </button>
-        <button
-          onClick={() => setSelectedDate(today)}
-          disabled={!online}
-          className={`rounded-full border px-4 py-2 text-sm font-medium ${
-            selectedDate === today
-              ? "border-zinc-900 bg-zinc-900 text-white"
-              : "border-zinc-300 bg-white text-zinc-700"
-          }`}
-        >
-          当日（{formatDateLabel(today)}）
-        </button>
+        {dateOptions.map((d) => (
+          <button
+            key={d.date}
+            onClick={() => setSelectedDate(d.date)}
+            disabled={!online}
+            className={`rounded-full border px-4 py-2 text-sm font-medium ${
+              selectedDate === d.date
+                ? "border-zinc-900 bg-zinc-900 text-white"
+                : "border-zinc-300 bg-white text-zinc-700"
+            }`}
+          >
+            {d.label}（{formatDateLabel(d.date)}）
+          </button>
+        ))}
       </div>
 
       {!online && <OfflineBanner message="通信復旧後に操作できます。" />}
