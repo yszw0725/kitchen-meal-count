@@ -9,8 +9,14 @@ import { formatDishName } from "@/lib/menu-import/format";
 type MenuItemRow = {
   date: string;
   meal: MealType;
-  sort_order: number;
-  dish_name: string;
+  sortOrder: number;
+  dishName: string;
+};
+
+type MenuBoard = {
+  startDate: string | null;
+  endDate: string | null;
+  items: MenuItemRow[];
 };
 
 const MEAL_ORDER: MealType[] = ["breakfast", "lunch", "dinner"];
@@ -22,34 +28,23 @@ export default async function MenuPage() {
   }
 
   const supabase = await createClient();
-  const { data: latestImport } = await supabase
-    .from("menu_imports")
-    .select("id, start_date, end_date")
-    .order("uploaded_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // 献立表の表示に必要なデータを1回のRPC呼び出しで取得する(以前は
+  // menu_imports→menu_itemsの2段階の逐次往復だったため、ネットワーク
+  // 遅延の影響を受けやすかった。S2トップのget_day_boardと同じ考え方)。
+  const { data: board } = await supabase.rpc("get_menu_board");
+  const { startDate, endDate, items } = (board ?? { startDate: null, endDate: null, items: [] }) as MenuBoard;
 
-  let itemsByDate = new Map<string, MenuItemRow[]>();
-  let dates: string[] = [];
+  const itemsByDate = new Map<string, MenuItemRow[]>();
+  for (const item of items) {
+    const list = itemsByDate.get(item.date) ?? [];
+    list.push(item);
+    itemsByDate.set(item.date, list);
+  }
 
-  if (latestImport) {
-    const { data: items } = await supabase
-      .from("menu_items")
-      .select("date, meal, sort_order, dish_name")
-      .eq("import_id", latestImport.id)
-      .order("date", { ascending: true })
-      .order("sort_order", { ascending: true });
-
-    itemsByDate = new Map();
-    for (const item of (items ?? []) as MenuItemRow[]) {
-      const list = itemsByDate.get(item.date) ?? [];
-      list.push(item);
-      itemsByDate.set(item.date, list);
-    }
-
-    dates = [];
+  const dates: string[] = [];
+  if (startDate) {
     for (let i = 0; i < 7; i++) {
-      const d = new Date(`${latestImport.start_date}T00:00:00Z`);
+      const d = new Date(`${startDate}T00:00:00Z`);
       d.setUTCDate(d.getUTCDate() + i);
       dates.push(d.toISOString().slice(0, 10));
     }
@@ -64,18 +59,18 @@ export default async function MenuPage() {
         </Link>
       </div>
 
-      {!latestImport ? (
+      {!startDate ? (
         <p className="rounded-lg border border-zinc-200 bg-white p-8 text-center text-zinc-400">
           まだ献立表がアップロードされていません。
         </p>
       ) : (
         <>
           <p className="text-sm text-zinc-500">
-            {formatDateLabel(latestImport.start_date)} 〜 {formatDateLabel(latestImport.end_date)}
+            {formatDateLabel(startDate)} 〜 {formatDateLabel(endDate!)}
           </p>
           <div className="grid grid-cols-7 items-start gap-2 overflow-x-auto">
             {dates.map((date) => {
-              const items = itemsByDate.get(date) ?? [];
+              const dayItems = itemsByDate.get(date) ?? [];
               return (
                 <div key={date} className="min-w-[150px] rounded-lg border border-zinc-200 bg-white">
                   <div className="border-b border-zinc-100 px-2 py-2 text-center text-sm font-bold text-zinc-800">
@@ -83,7 +78,7 @@ export default async function MenuPage() {
                   </div>
                   <div className="divide-y divide-zinc-200 p-2">
                     {MEAL_ORDER.map((meal) => {
-                      const mealItems = items.filter((i) => i.meal === meal);
+                      const mealItems = dayItems.filter((i) => i.meal === meal);
                       return (
                         <div key={meal} className="py-2 first:pt-0 last:pb-0">
                           <p className="text-xs font-bold text-zinc-500">【{MEAL_LABEL[meal]}】</p>
@@ -91,8 +86,8 @@ export default async function MenuPage() {
                             <p className="text-xs text-zinc-300">-</p>
                           ) : (
                             mealItems.map((item) => (
-                              <p key={item.sort_order} className="text-xs leading-snug text-zinc-700">
-                                {formatDishName(item.dish_name)}
+                              <p key={item.sortOrder} className="text-xs leading-snug text-zinc-700">
+                                {formatDishName(item.dishName)}
                               </p>
                             ))
                           )}

@@ -5,9 +5,19 @@ import { getCurrentUserAndProfile } from "@/lib/current-user";
 import { addDays, formatDateLabel } from "@/lib/board-date";
 import EditableNotePanel from "@/components/editable-note-panel";
 
-type ShiftStaffRow = { id: string; name: string; sort_order: number };
-type ShiftEntryRow = { date: string; staff_id: string; code: string };
+type ShiftStaffRow = { id: string; name: string; sortOrder: number };
+type ShiftEntryRow = { date: string; staffId: string; code: string };
 type ShiftDateEventRow = { date: string; note: string };
+type NoteInfo = { content: string; updatedAt: string | null };
+type ShiftBoard = {
+  events: NoteInfo | null;
+  workNotes: NoteInfo | null;
+  startDate: string | null;
+  endDate: string | null;
+  staff: ShiftStaffRow[];
+  entries: ShiftEntryRow[];
+  dateEvents: ShiftDateEventRow[];
+};
 
 const WEEKDAY_LABELS = ["月", "火", "水", "木", "金", "土", "日"];
 
@@ -150,47 +160,29 @@ export default async function ShiftsPage() {
   }
 
   const supabase = await createClient();
-  const [{ data: latestImport }, { data: events }, { data: workNotes }] = await Promise.all([
-    supabase
-      .from("shift_imports")
-      .select("id, start_date, end_date")
-      .order("uploaded_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    supabase.from("shift_events").select("content, updated_at").eq("id", true).maybeSingle(),
-    supabase.from("shift_work_notes").select("content, updated_at").eq("id", true).maybeSingle(),
-  ]);
+  // 勤務表の表示に必要なデータを1回のRPC呼び出しで取得する(以前はshift_imports
+  // 等→shift_staff/shift_entries/shift_date_eventsの2段階の逐次往復だった)。
+  const { data: board } = await supabase.rpc("get_shift_board");
+  const {
+    events,
+    workNotes,
+    startDate,
+    endDate,
+    staff,
+    entries,
+    dateEvents: dateEventList,
+  } = (board ?? {
+    events: null,
+    workNotes: null,
+    startDate: null,
+    endDate: null,
+    staff: [],
+    entries: [],
+    dateEvents: [],
+  }) as ShiftBoard;
 
-  let staff: ShiftStaffRow[] = [];
-  let codeMap = new Map<string, string>();
-  let noteMap = new Map<string, string>();
-  let dateEventList: ShiftDateEventRow[] = [];
-
-  if (latestImport) {
-    const [{ data: staffData }, { data: entryData }, { data: dateEventData }] = await Promise.all([
-      supabase
-        .from("shift_staff")
-        .select("id, name, sort_order")
-        .eq("is_active", true)
-        .order("sort_order", { ascending: true }),
-      supabase
-        .from("shift_entries")
-        .select("date, staff_id, code")
-        .eq("import_id", latestImport.id),
-      supabase
-        .from("shift_date_events")
-        .select("date, note")
-        .eq("import_id", latestImport.id),
-    ]);
-    staff = (staffData ?? []) as ShiftStaffRow[];
-    codeMap = new Map(
-      ((entryData ?? []) as ShiftEntryRow[]).map((e) => [`${e.staff_id}|${e.date}`, e.code]),
-    );
-    dateEventList = ((dateEventData ?? []) as ShiftDateEventRow[]).sort((a, b) =>
-      a.date.localeCompare(b.date),
-    );
-    noteMap = new Map(dateEventList.map((e) => [e.date, e.note]));
-  }
+  const codeMap = new Map(entries.map((e) => [`${e.staffId}|${e.date}`, e.code]));
+  const noteMap = new Map(dateEventList.map((e) => [e.date, e.note]));
 
   const codeOf = (staffId: string, date: string) => codeMap.get(`${staffId}|${date}`) ?? "";
   const noteOf = (date: string) => noteMap.get(date) ?? "";
@@ -209,7 +201,7 @@ export default async function ShiftsPage() {
         title="行事・会議予定"
         emptyLabel="行事・会議予定はまだ登録されていません。"
         userId={user.id}
-        initialNote={{ content: events?.content ?? "", updatedAt: events?.updated_at ?? null }}
+        initialNote={{ content: events?.content ?? "", updatedAt: events?.updatedAt ?? null }}
         rows={2}
       >
         {dateEventList.length > 0 && (
@@ -228,17 +220,17 @@ export default async function ShiftsPage() {
         )}
       </EditableNotePanel>
 
-      {!latestImport ? (
+      {!startDate ? (
         <p className="rounded-lg border border-zinc-200 bg-white p-8 text-center text-zinc-400">
           まだ勤務表がアップロードされていません。
         </p>
       ) : (
         <div className="space-y-2">
           <p className="text-sm text-zinc-500">
-            {formatDateLabel(latestImport.start_date)} 〜 {formatDateLabel(latestImport.end_date)}
+            {formatDateLabel(startDate)} 〜 {formatDateLabel(endDate!)}
           </p>
           <ShiftGrid
-            weekDateGroups={[0, 1, 2, 3].map((w) => weekDates(latestImport.start_date, w))}
+            weekDateGroups={[0, 1, 2, 3].map((w) => weekDates(startDate, w))}
             staff={staff}
             codeOf={codeOf}
             noteOf={noteOf}
@@ -251,7 +243,7 @@ export default async function ShiftsPage() {
         title="メモ"
         emptyLabel="まだ何も書かれていません。"
         userId={user.id}
-        initialNote={{ content: workNotes?.content ?? "", updatedAt: workNotes?.updated_at ?? null }}
+        initialNote={{ content: workNotes?.content ?? "", updatedAt: workNotes?.updatedAt ?? null }}
         rows={3}
       />
     </main>
