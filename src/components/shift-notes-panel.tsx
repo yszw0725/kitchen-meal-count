@@ -114,7 +114,7 @@ export default function ShiftNotesPanel({
       className="shrink-0 space-y-2 rounded-lg border border-zinc-200 bg-white p-4 compact:p-3"
     >
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-bold text-zinc-700">連絡ノート（掃除当番など）</h2>
+        <h2 className="text-sm font-bold text-zinc-700">連絡ノート</h2>
         {!editing && (
           <button
             onClick={startEdit}

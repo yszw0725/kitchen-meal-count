@@ -56,7 +56,7 @@ export default async function MenuPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-[1600px] flex-1 space-y-4 p-4">
+    <main className="mx-auto w-full max-w-[1600px] space-y-4 p-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-zinc-900">週間献立表</h1>
         <Link href="/" className="rounded-md border border-zinc-300 px-4 py-2 text-sm">
@@ -73,7 +73,7 @@ export default async function MenuPage() {
           <p className="text-sm text-zinc-500">
             {formatDateLabel(latestImport.start_date)} 〜 {formatDateLabel(latestImport.end_date)}
           </p>
-          <div className="grid grid-cols-7 gap-2 overflow-x-auto">
+          <div className="grid grid-cols-7 items-start gap-2 overflow-x-auto">
             {dates.map((date) => {
               const items = itemsByDate.get(date) ?? [];
               return (
@@ -81,11 +81,11 @@ export default async function MenuPage() {
                   <div className="border-b border-zinc-100 px-2 py-2 text-center text-sm font-bold text-zinc-800">
                     {formatDateLabel(date)}
                   </div>
-                  <div className="space-y-2 p-2">
+                  <div className="divide-y divide-zinc-200 p-2">
                     {MEAL_ORDER.map((meal) => {
                       const mealItems = items.filter((i) => i.meal === meal);
                       return (
-                        <div key={meal}>
+                        <div key={meal} className="py-2 first:pt-0 last:pb-0">
                           <p className="text-xs font-bold text-zinc-500">【{MEAL_LABEL[meal]}】</p>
                           {mealItems.length === 0 ? (
                             <p className="text-xs text-zinc-300">-</p>

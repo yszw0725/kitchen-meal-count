@@ -1,6 +1,6 @@
 import * as XLSX from "xlsx";
 import { addDays } from "@/lib/board-date";
-import type { ImportError, ParsedShiftEntry, ParsedStaff, ParseResult } from "./types";
+import type { ImportError, ParsedDateEvent, ParsedShiftEntry, ParsedStaff, ParseResult } from "./types";
 
 // 設計書§1.2・§5.2の解析結果に基づく固定レイアウト。
 // 4週間分が横方向に並び、週ブロックの列位置(G/AG/BG/CG)は固定値として
@@ -8,6 +8,7 @@ import type { ImportError, ParsedShiftEntry, ParsedStaff, ParseResult } from "./
 const SHEET_NAME = "Sheet1 (2)";
 const WEEK_START_COLS = ["G", "AG", "BG", "CG"].map((c) => XLSX.utils.decode_col(c));
 const NAME_COL = XLSX.utils.decode_col("AN");
+const DATE_EVENT_ROW = 0; // Excel 1行目(日付に紐づく会議・行事の記載、例:「主任会」)
 const DATE_ROW = 2; // Excel 3行目(日付の数字、0-indexed)
 const STAFF_ROW_START = 5; // Excel 6行目
 const STAFF_ROW_END = 13; // Excel 14行目
@@ -127,5 +128,16 @@ export function parseShiftImport(buffer: Buffer, periodStartDate: string): Parse
     }
   }
 
-  return { ok: true, staff, entries };
+  // 日付見出し行(3行目)のさらに1行上(1行目)に、特定の日付に紐づく
+  // 会議・行事の記載がまばらに書き込まれている(例:「主任会」)。
+  // 該当する日付の列の真上に記載されているので、列位置から日付を
+  // 特定できる。空欄の列がほとんどで、記載がある列だけ取り込む。
+  const dateEvents: ParsedDateEvent[] = [];
+  for (const [col, date] of dateByCol) {
+    const note = cellToString(rows[DATE_EVENT_ROW]?.[col]);
+    if (!note) continue;
+    dateEvents.push({ date, note });
+  }
+
+  return { ok: true, staff, entries, dateEvents };
 }

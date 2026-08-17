@@ -7,6 +7,7 @@ import EditableNotePanel from "@/components/editable-note-panel";
 
 type ShiftStaffRow = { id: string; name: string; sort_order: number };
 type ShiftEntryRow = { date: string; staff_id: string; code: string };
+type ShiftDateEventRow = { date: string; note: string };
 
 const WEEKDAY_LABELS = ["月", "火", "水", "木", "金", "土", "日"];
 
@@ -19,83 +20,112 @@ function formatShort(date: string): string {
   return `${Number(m)}/${Number(d)}`;
 }
 
-function DayHeaderCells({ dates }: { dates: string[] }) {
-  return (
-    <>
-      {dates.map((date, i) => {
-        const day = Number(date.split("-")[2]);
-        return (
-          <th key={date} className="border border-zinc-200 bg-zinc-50 px-1 py-0.5 text-center font-normal">
-            <div className="text-[11px] text-zinc-400">{WEEKDAY_LABELS[i]}</div>
-            <div className="text-xs font-bold text-zinc-700">{day}</div>
-          </th>
-        );
-      })}
-    </>
-  );
-}
-
-function WeekPairTable({
-  leftLabel,
-  leftDates,
-  rightLabel,
-  rightDates,
+// 資料と同じ「第1・2週／職員名／第3・4週」の配置を、改行・分断なく横一直線
+// に収める(要望により、以前の週ペアごとに分割した2テーブル構成から変更)。
+// 4週×7日=28列と職員名列を1つのtableにまとめ、コマの幅・文字サイズは
+// 1280px幅に収まるよう小さめにしている。
+function ShiftGrid({
+  weekDateGroups,
   staff,
   codeOf,
+  noteOf,
 }: {
-  leftLabel: string;
-  leftDates: string[];
-  rightLabel: string;
-  rightDates: string[];
+  weekDateGroups: string[][];
   staff: ShiftStaffRow[];
   codeOf: (staffId: string, date: string) => string;
+  noteOf: (date: string) => string;
 }) {
+  const leftDates = [...weekDateGroups[0], ...weekDateGroups[1]];
+  const rightDates = [...weekDateGroups[2], ...weekDateGroups[3]];
+
   return (
-    <table className="w-full border-collapse text-xs">
-      <thead>
-        <tr>
-          <th
-            colSpan={7}
-            className="border border-zinc-200 bg-zinc-100 px-1 py-1 text-center font-bold text-zinc-700"
-          >
-            {leftLabel}
-          </th>
-          <th className="border border-zinc-200 bg-zinc-100 px-2 py-1 text-center font-bold text-zinc-700">
-            職員名
-          </th>
-          <th
-            colSpan={7}
-            className="border border-zinc-200 bg-zinc-100 px-1 py-1 text-center font-bold text-zinc-700"
-          >
-            {rightLabel}
-          </th>
-        </tr>
-        <tr>
-          <DayHeaderCells dates={leftDates} />
-          <th className="border border-zinc-200 bg-zinc-50" />
-          <DayHeaderCells dates={rightDates} />
-        </tr>
-      </thead>
-      <tbody>
-        {staff.map((s) => (
-          <tr key={s.id}>
-            {leftDates.map((date) => (
-              <td key={date} className="border border-zinc-200 px-1 py-0.5 text-center text-zinc-800">
-                {codeOf(s.id, date)}
-              </td>
-            ))}
-            <td className="border border-zinc-200 px-2 py-0.5 whitespace-nowrap font-bold text-zinc-800">
-              {s.name}
-            </td>
-            {rightDates.map((date) => (
-              <td key={date} className="border border-zinc-200 px-1 py-0.5 text-center text-zinc-800">
-                {codeOf(s.id, date)}
-              </td>
-            ))}
+    <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white p-2">
+      <table className="w-full border-collapse text-[11px]">
+        <thead>
+          <tr>
+            <th
+              colSpan={7}
+              className="border border-zinc-200 bg-zinc-100 px-0.5 py-1 text-center text-xs font-bold text-zinc-700"
+            >
+              第1週({formatShort(weekDateGroups[0][0])}〜{formatShort(weekDateGroups[0][6])})
+            </th>
+            <th
+              colSpan={7}
+              className="border border-zinc-200 bg-zinc-100 px-0.5 py-1 text-center text-xs font-bold text-zinc-700"
+            >
+              第2週({formatShort(weekDateGroups[1][0])}〜{formatShort(weekDateGroups[1][6])})
+            </th>
+            <th
+              rowSpan={3}
+              className="border border-zinc-200 bg-zinc-100 px-2 py-1 text-center text-xs font-bold whitespace-nowrap text-zinc-700"
+            >
+              職員名
+            </th>
+            <th
+              colSpan={7}
+              className="border border-zinc-200 bg-zinc-100 px-0.5 py-1 text-center text-xs font-bold text-zinc-700"
+            >
+              第3週({formatShort(weekDateGroups[2][0])}〜{formatShort(weekDateGroups[2][6])})
+            </th>
+            <th
+              colSpan={7}
+              className="border border-zinc-200 bg-zinc-100 px-0.5 py-1 text-center text-xs font-bold text-zinc-700"
+            >
+              第4週({formatShort(weekDateGroups[3][0])}〜{formatShort(weekDateGroups[3][6])})
+            </th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+          <tr>
+            {[...leftDates, ...rightDates].map((date) => {
+              const note = noteOf(date);
+              return (
+                <th
+                  key={date}
+                  className={`border border-zinc-200 px-0.5 py-0.5 text-center text-[9px] leading-tight font-normal ${
+                    note ? "bg-amber-50 text-amber-700" : "bg-zinc-50"
+                  }`}
+                >
+                  {note}
+                </th>
+              );
+            })}
+          </tr>
+          <tr>
+            {[...leftDates, ...rightDates].map((date) => {
+              const day = Number(date.split("-")[2]);
+              const weekday = WEEKDAY_LABELS[(new Date(`${date}T00:00:00Z`).getUTCDay() + 6) % 7];
+              return (
+                <th
+                  key={date}
+                  className="border border-zinc-200 bg-zinc-50 px-0.5 py-0.5 text-center font-normal"
+                >
+                  <div className="text-[9px] text-zinc-400">{weekday}</div>
+                  <div className="text-[11px] font-bold text-zinc-700">{day}</div>
+                </th>
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {staff.map((s) => (
+            <tr key={s.id}>
+              {leftDates.map((date) => (
+                <td key={date} className="border border-zinc-200 px-0.5 py-0.5 text-center text-zinc-800">
+                  {codeOf(s.id, date)}
+                </td>
+              ))}
+              <td className="border border-zinc-200 px-2 py-0.5 text-xs font-bold whitespace-nowrap text-zinc-800">
+                {s.name}
+              </td>
+              {rightDates.map((date) => (
+                <td key={date} className="border border-zinc-200 px-0.5 py-0.5 text-center text-zinc-800">
+                  {codeOf(s.id, date)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -119,9 +149,10 @@ export default async function ShiftsPage() {
 
   let staff: ShiftStaffRow[] = [];
   let codeMap = new Map<string, string>();
+  let noteMap = new Map<string, string>();
 
   if (latestImport) {
-    const [{ data: staffData }, { data: entryData }] = await Promise.all([
+    const [{ data: staffData }, { data: entryData }, { data: dateEventData }] = await Promise.all([
       supabase
         .from("shift_staff")
         .select("id, name, sort_order")
@@ -131,17 +162,23 @@ export default async function ShiftsPage() {
         .from("shift_entries")
         .select("date, staff_id, code")
         .eq("import_id", latestImport.id),
+      supabase
+        .from("shift_date_events")
+        .select("date, note")
+        .eq("import_id", latestImport.id),
     ]);
     staff = (staffData ?? []) as ShiftStaffRow[];
     codeMap = new Map(
       ((entryData ?? []) as ShiftEntryRow[]).map((e) => [`${e.staff_id}|${e.date}`, e.code]),
     );
+    noteMap = new Map(((dateEventData ?? []) as ShiftDateEventRow[]).map((e) => [e.date, e.note]));
   }
 
   const codeOf = (staffId: string, date: string) => codeMap.get(`${staffId}|${date}`) ?? "";
+  const noteOf = (date: string) => noteMap.get(date) ?? "";
 
   return (
-    <main className="mx-auto w-full max-w-[1900px] flex-1 space-y-3 p-4">
+    <main className="mx-auto w-full max-w-[1900px] space-y-3 p-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-zinc-900">勤務表</h1>
         <Link href="/" className="rounded-md border border-zinc-300 px-4 py-2 text-sm">
@@ -167,32 +204,18 @@ export default async function ShiftsPage() {
           <p className="text-sm text-zinc-500">
             {formatDateLabel(latestImport.start_date)} 〜 {formatDateLabel(latestImport.end_date)}
           </p>
-          <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white p-2">
-            <WeekPairTable
-              leftLabel={`第1週(${formatShort(weekDates(latestImport.start_date, 0)[0])}〜${formatShort(weekDates(latestImport.start_date, 0)[6])})`}
-              leftDates={weekDates(latestImport.start_date, 0)}
-              rightLabel={`第3週(${formatShort(weekDates(latestImport.start_date, 2)[0])}〜${formatShort(weekDates(latestImport.start_date, 2)[6])})`}
-              rightDates={weekDates(latestImport.start_date, 2)}
-              staff={staff}
-              codeOf={codeOf}
-            />
-          </div>
-          <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white p-2">
-            <WeekPairTable
-              leftLabel={`第2週(${formatShort(weekDates(latestImport.start_date, 1)[0])}〜${formatShort(weekDates(latestImport.start_date, 1)[6])})`}
-              leftDates={weekDates(latestImport.start_date, 1)}
-              rightLabel={`第4週(${formatShort(weekDates(latestImport.start_date, 3)[0])}〜${formatShort(weekDates(latestImport.start_date, 3)[6])})`}
-              rightDates={weekDates(latestImport.start_date, 3)}
-              staff={staff}
-              codeOf={codeOf}
-            />
-          </div>
+          <ShiftGrid
+            weekDateGroups={[0, 1, 2, 3].map((w) => weekDates(latestImport.start_date, w))}
+            staff={staff}
+            codeOf={codeOf}
+            noteOf={noteOf}
+          />
         </div>
       )}
 
       <EditableNotePanel
         table="shift_work_notes"
-        title="メモ（掃除当番など）"
+        title="メモ"
         emptyLabel="まだ何も書かれていません。"
         userId={user.id}
         initialNote={{ content: workNotes?.content ?? "", updatedAt: workNotes?.updated_at ?? null }}
