@@ -6,6 +6,7 @@ import { formatDateLabel } from "@/lib/board-date";
 type ImportError = { row: number; column: string; value: string; message: string };
 type ParsedStaff = { name: string; sortOrder: number };
 type ParsedShiftEntry = { date: string; staffName: string; code: string };
+type ParsedDateEvent = { date: string; note: string };
 
 type Stage =
   | { phase: "idle" }
@@ -19,9 +20,10 @@ type Stage =
       endDate: string;
       staff: ParsedStaff[];
       entries: ParsedShiftEntry[];
+      dateEvents: ParsedDateEvent[];
     }
   | { phase: "confirming" }
-  | { phase: "done"; staffCount: number; entryCount: number };
+  | { phase: "done"; staffCount: number; entryCount: number; dateEventCount: number };
 
 export default function ShiftImportClient() {
   const [stage, setStage] = useState<Stage>({ phase: "idle" });
@@ -61,6 +63,7 @@ export default function ShiftImportClient() {
       endDate: body.endDate,
       staff: body.staff,
       entries: body.entries,
+      dateEvents: body.dateEvents,
     });
   }
 
@@ -89,7 +92,12 @@ export default function ShiftImportClient() {
       return;
     }
 
-    setStage({ phase: "done", staffCount: body.staffCount, entryCount: body.entryCount });
+    setStage({
+      phase: "done",
+      staffCount: body.staffCount,
+      entryCount: body.entryCount,
+      dateEventCount: body.dateEventCount,
+    });
   }
 
   function reset() {
@@ -181,6 +189,21 @@ export default function ShiftImportClient() {
             </table>
           </div>
 
+          {stage.dateEvents.length > 0 && (
+            <div className="rounded-lg border border-zinc-200 bg-white p-4">
+              <p className="mb-2 text-sm font-medium text-zinc-700">
+                日付に紐づく会議・行事({stage.dateEvents.length}件)
+              </p>
+              <ul className="space-y-1 text-sm text-zinc-600">
+                {stage.dateEvents.map((e) => (
+                  <li key={e.date}>
+                    {formatDateLabel(e.date)}: {e.note}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <div className="flex gap-2">
             <button onClick={reset} className="rounded-md border border-zinc-300 px-4 py-2 text-sm">
               やり直す
@@ -200,7 +223,8 @@ export default function ShiftImportClient() {
       {stage.phase === "done" && (
         <div className="space-y-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
           <p className="text-emerald-800">
-            勤務表(職員{stage.staffCount}名・勤務{stage.entryCount}件)を確定しました。
+            勤務表(職員{stage.staffCount}名・勤務{stage.entryCount}件・会議日程
+            {stage.dateEventCount}件)を確定しました。
           </p>
           <button onClick={reset} className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm">
             続けて別の期間をアップロードする

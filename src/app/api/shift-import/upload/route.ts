@@ -57,5 +57,6 @@ export async function POST(request: NextRequest) {
     endDate: addDays(periodStartDate, 27),
     staff: result.staff,
     entries: result.entries,
+    dateEvents: result.dateEvents,
   });
 }

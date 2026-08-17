@@ -128,9 +128,42 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // shift_date_events(ファイル内の日付に紐づく会議・行事の記載)も
+  // 同じ期間で洗い替えする。
+  const { error: deleteDateEventsError } = await service
+    .from("shift_date_events")
+    .delete()
+    .gte("date", startDate)
+    .lte("date", endDate);
+
+  if (deleteDateEventsError) {
+    return NextResponse.json(
+      { message: `既存データの削除に失敗しました: ${deleteDateEventsError.message}` },
+      { status: 500 },
+    );
+  }
+
+  if (result.dateEvents.length > 0) {
+    const { error: dateEventsInsertError } = await service.from("shift_date_events").insert(
+      result.dateEvents.map((e) => ({
+        date: e.date,
+        note: e.note,
+        import_id: importRow.id,
+      })),
+    );
+
+    if (dateEventsInsertError) {
+      return NextResponse.json(
+        { message: `日付別の予定の登録に失敗しました: ${dateEventsInsertError.message}` },
+        { status: 500 },
+      );
+    }
+  }
+
   return NextResponse.json({
     ok: true,
     staffCount: result.staff.length,
     entryCount: result.entries.length,
+    dateEventCount: result.dateEvents.length,
   });
 }

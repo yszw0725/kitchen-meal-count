@@ -16,10 +16,16 @@ export type ParsedShiftEntry = {
   code: string;
 };
 
+export type ParsedDateEvent = {
+  date: string; // ISO yyyy-mm-dd
+  note: string;
+};
+
 export type ParseSuccess = {
   ok: true;
   staff: ParsedStaff[];
   entries: ParsedShiftEntry[];
+  dateEvents: ParsedDateEvent[];
 };
 
 export type ParseFailure = {
