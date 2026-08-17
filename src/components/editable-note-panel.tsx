@@ -32,6 +32,7 @@ export default function EditableNotePanel({
   initialNote,
   htmlId,
   rows = 3,
+  children,
 }: {
   table: "shift_events" | "shift_work_notes";
   title: string;
@@ -40,6 +41,7 @@ export default function EditableNotePanel({
   initialNote: NoteInfo;
   htmlId?: string;
   rows?: number;
+  children?: React.ReactNode;
 }) {
   const [note, setNote] = useState(initialNote);
   const [editing, setEditing] = useState(false);
@@ -123,6 +125,8 @@ export default function EditableNotePanel({
       {updatedAtLabel && !editing && (
         <p className="text-right text-xs text-zinc-400">{updatedAtLabel} 更新</p>
       )}
+
+      {children}
     </div>
   );
 }

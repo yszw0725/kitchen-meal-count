@@ -9,13 +9,12 @@ export default async function DefaultMealsPage() {
   if (profile?.role !== "admin") notFound();
 
   const supabase = await createClient();
-  const [{ data: residents }, { data: groups }, { data: defaultMeals }] = await Promise.all([
+  const [{ data: residents }, { data: groups }] = await Promise.all([
     supabase
       .from("residents")
       .select("id, name, group_id, left_on")
       .order("name"),
     supabase.from("resident_groups").select("id, short_name, sort_order").order("sort_order"),
-    supabase.from("resident_default_meals").select("resident_id, weekday, meal, eats"),
   ]);
 
   return (
@@ -29,7 +28,6 @@ export default async function DefaultMealsPage() {
       <DefaultMealsClient
         residents={(residents ?? []).filter((r) => r.left_on === null)}
         groups={groups ?? []}
-        initialDefaultMeals={defaultMeals ?? []}
       />
     </main>
   );

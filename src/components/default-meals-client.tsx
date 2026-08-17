@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { MEAL_LABEL, type MealType } from "@/lib/board-types";
 import { useOnlineStatus } from "@/lib/use-online-status";
@@ -11,16 +11,16 @@ type Group = { id: string; short_name: string; sort_order: number };
 type DefaultMealRow = { resident_id: string; weekday: number; meal: MealType; eats: boolean };
 
 const MEAL_ORDER: MealType[] = ["breakfast", "lunch", "dinner"];
-const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
+// weekday(DBの値、0=日曜〜6=土曜)は変更せず、表示順のみ月曜始まりにする。
+const WEEKDAY_LABELS_BY_NUMBER = ["日", "月", "火", "水", "木", "金", "土"];
+const WEEKDAY_DISPLAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
 
 export default function DefaultMealsClient({
   residents,
   groups,
-  initialDefaultMeals,
 }: {
   residents: Resident[];
   groups: Group[];
-  initialDefaultMeals: DefaultMealRow[];
 }) {
   const groupById = useMemo(() => new Map(groups.map((g) => [g.id, g])), [groups]);
   const sortedResidents = useMemo(
@@ -34,35 +34,60 @@ export default function DefaultMealsClient({
   );
 
   const [selectedId, setSelectedId] = useState(sortedResidents[0]?.id ?? "");
-  const [rows, setRows] = useState(initialDefaultMeals);
+  const [rows, setRows] = useState<DefaultMealRow[]>([]);
+  // 読込中判定は明示的なsetState(true)を effect 内で同期的に呼ばず、
+  // 「rows がどの利用者分として読み込まれたか」を非同期コールバック内でのみ
+  // 更新する形にして導出する(react-hooks/set-state-in-effect対応)。
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const online = useOnlineStatus();
+  const loading = selectedId !== "" && loadedFor !== selectedId;
+
+  // resident_default_mealsは利用者数×21件(7曜日×3食)になり、施設全体を
+  // 一括取得するとPostgRESTの最大取得件数(既定1000件)を超過し得る(超過分は
+  // クライアント側のrange指定を無視してサーバー側で黙って切り捨てられる)。
+  // そのため選択中の利用者1名分(21件)だけを都度取得する方式にしている。
+  useEffect(() => {
+    if (!selectedId) return;
+    let cancelled = false;
+    const supabase = createClient();
+    supabase
+      .from("resident_default_meals")
+      .select("resident_id, weekday, meal, eats")
+      .eq("resident_id", selectedId)
+      .then(({ data, error: fetchError }) => {
+        if (cancelled) return;
+        if (fetchError) {
+          setError(fetchError.message);
+        } else {
+          setRows((data ?? []) as DefaultMealRow[]);
+        }
+        setLoadedFor(selectedId);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId]);
 
   const grid = useMemo(() => {
     const map = new Map<string, boolean>();
     for (const r of rows) {
-      if (r.resident_id === selectedId) {
-        map.set(`${r.weekday}:${r.meal}`, r.eats);
-      }
+      map.set(`${r.weekday}:${r.meal}`, r.eats);
     }
     return map;
-  }, [rows, selectedId]);
+  }, [rows]);
 
   function toggle(weekday: number, meal: MealType) {
     setSaved(false);
     const key = `${weekday}:${meal}`;
     const current = grid.get(key) ?? false;
     setRows((prev) => {
-      const exists = prev.some(
-        (r) => r.resident_id === selectedId && r.weekday === weekday && r.meal === meal,
-      );
+      const exists = prev.some((r) => r.weekday === weekday && r.meal === meal);
       if (exists) {
         return prev.map((r) =>
-          r.resident_id === selectedId && r.weekday === weekday && r.meal === meal
-            ? { ...r, eats: !current }
-            : r,
+          r.weekday === weekday && r.meal === meal ? { ...r, eats: !current } : r,
         );
       }
       return [...prev, { resident_id: selectedId, weekday, meal, eats: !current }];
@@ -126,15 +151,17 @@ export default function DefaultMealsClient({
         </select>
       </div>
 
-      {selectedResident && (
+      {selectedResident && loading && <p className="text-sm text-zinc-400">読み込み中...</p>}
+
+      {selectedResident && !loading && (
         <div className="overflow-x-auto rounded-lg border border-zinc-200">
           <table className="min-w-full text-center text-sm">
             <thead className="bg-zinc-50">
               <tr>
                 <th className="px-3 py-2 text-left">食事＼曜日</th>
-                {WEEKDAY_LABELS.map((w, i) => (
-                  <th key={i} className="px-3 py-2">
-                    {w}
+                {WEEKDAY_DISPLAY_ORDER.map((weekday) => (
+                  <th key={weekday} className="px-3 py-2">
+                    {WEEKDAY_LABELS_BY_NUMBER[weekday]}
                   </th>
                 ))}
               </tr>
@@ -145,7 +172,7 @@ export default function DefaultMealsClient({
                   <td className="px-3 py-2 text-left font-medium text-zinc-700">
                     {MEAL_LABEL[meal]}
                   </td>
-                  {WEEKDAY_LABELS.map((_, weekday) => {
+                  {WEEKDAY_DISPLAY_ORDER.map((weekday) => {
                     const eats = grid.get(`${weekday}:${meal}`) ?? false;
                     return (
                       <td key={weekday} className="px-2 py-2">
@@ -174,7 +201,7 @@ export default function DefaultMealsClient({
 
       <button
         onClick={handleSave}
-        disabled={saving || !selectedId || !online}
+        disabled={saving || loading || !selectedId || !online}
         className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
       >
         {saving ? "保存中..." : "保存"}
