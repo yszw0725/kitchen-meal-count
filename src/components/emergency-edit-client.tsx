@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { todayInTokyo } from "@/lib/board-date";
+import { addDays, formatDateLabel, todayInTokyo } from "@/lib/board-date";
 import {
   MEAL_LABEL,
   defaultEmergencyMeals,
@@ -25,15 +25,24 @@ type Resident = {
 
 const MEAL_ORDER: MealType[] = ["breakfast", "lunch", "dinner"];
 
-export default function EmergencyEditClient({ dateLabel }: { dateLabel: string }) {
+function overrideKey(date: string, residentId: string): string {
+  return `${date}|${residentId}`;
+}
+
+export default function EmergencyEditClient() {
+  const today = todayInTokyo();
+  const yesterday = addDays(today, -1);
+
   const [dataLoading, setDataLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [groups, setGroups] = useState<Group[]>([]);
   const [residents, setResidents] = useState<Resident[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string>(today);
   const [selectedMeals, setSelectedMeals] = useState<Set<MealType>>(
     () => new Set(defaultEmergencyMeals()),
   );
+  // キーは `${date}|${residentId}` (前日・当日の2日分をまとめて保持する)
   const [overrides, setOverrides] = useState<Record<string, MealType[]>>({});
   const [toast, setToast] = useState<{ message: string; onUndo: () => void } | null>(
     null,
@@ -52,14 +61,14 @@ export default function EmergencyEditClient({ dateLabel }: { dateLabel: string }
     };
   }, []);
 
-  // 区分・利用者・当日の緊急上書きは、Next.jsサーバーを経由せずクライアントから
+  // 区分・利用者・前日/当日の緊急上書きは、Next.jsサーバーを経由せずクライアントから
   // Supabaseへ直接問い合わせる(S3の日付切替と同じ方式)。開いた瞬間に見た目は表示し、
-  // 一覧はデータ到着後に埋める。
+  // 一覧はデータ到着後に埋める。前日・当日の2日分をまとめて取得し、日付トグルは
+  // 再フェッチなしでクライアント側の絞り込みだけで切り替える。
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const supabase = createClient();
-      const today = todayInTokyo();
       const [groupsRes, residentsRes, overridesRes] = await Promise.all([
         supabase
           .from("resident_groups")
@@ -72,7 +81,10 @@ export default function EmergencyEditClient({ dateLabel }: { dateLabel: string }
           .is("left_on", null)
           .order("kana", { nullsFirst: false })
           .order("name"),
-        supabase.from("kitchen_overrides").select("resident_id, meal").eq("date", today),
+        supabase
+          .from("kitchen_overrides")
+          .select("resident_id, meal, date")
+          .in("date", [today, yesterday]),
       ]);
       if (cancelled) return;
 
@@ -82,20 +94,21 @@ export default function EmergencyEditClient({ dateLabel }: { dateLabel: string }
         return;
       }
 
-      const overridesByResident: Record<string, MealType[]> = {};
+      const overridesByKey: Record<string, MealType[]> = {};
       for (const o of overridesRes.data ?? []) {
-        (overridesByResident[o.resident_id] ??= []).push(o.meal);
+        const key = overrideKey(o.date, o.resident_id);
+        (overridesByKey[key] ??= []).push(o.meal);
       }
 
       setGroups(groupsRes.data ?? []);
       setResidents(residentsRes.data ?? []);
-      setOverrides(overridesByResident);
+      setOverrides(overridesByKey);
       setDataLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [today, yesterday]);
 
   function showToast(message: string, onUndo: () => void) {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -112,11 +125,11 @@ export default function EmergencyEditClient({ dateLabel }: { dateLabel: string }
     });
   }
 
-  async function callToggle(residentId: string, meals: MealType[]) {
+  async function callToggle(residentId: string, meals: MealType[], date: string) {
     const res = await fetch("/api/kitchen-overrides/toggle", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ residentId, meals }),
+      body: JSON.stringify({ residentId, meals, date }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
@@ -130,49 +143,53 @@ export default function EmergencyEditClient({ dateLabel }: { dateLabel: string }
     }>;
   }
 
-  function applyLocalOverride(residentId: string, meals: MealType[], added: boolean) {
+  function applyLocalOverride(residentId: string, meals: MealType[], added: boolean, date: string) {
     setOverrides((prev) => {
-      const current = new Set(prev[residentId] ?? []);
+      const key = overrideKey(date, residentId);
+      const current = new Set(prev[key] ?? []);
       for (const m of meals) {
         if (added) current.add(m);
         else current.delete(m);
       }
-      return { ...prev, [residentId]: [...current] };
+      return { ...prev, [key]: [...current] };
     });
   }
 
   function handleTap(resident: Resident) {
     if (!online) return;
+    const date = selectedDate;
     const meals = [...selectedMeals];
-    const wasMarked = meals.every((m) => overrides[resident.id]?.includes(m));
+    const wasMarked = meals.every((m) => overrides[overrideKey(date, resident.id)]?.includes(m));
     const willAdd = !wasMarked;
     const isGhResident = isGhGroupName(
       groups.find((g) => g.id === resident.group_id)?.short_name ?? "",
     );
     const verb = isGhResident ? "食べる人" : "お休み";
     const mealLabel = meals.map((m) => MEAL_LABEL[m]).join("・");
+    const dayLabel = date === today ? "当日" : "前日";
 
     // 楽観的UI: サーバー応答を待たず、タップした瞬間に画面とトーストを確定する (§6.4)
-    applyLocalOverride(resident.id, meals, willAdd);
+    applyLocalOverride(resident.id, meals, willAdd, date);
     const message = willAdd
-      ? `たった今 ${resident.name} さんを${mealLabel}${verb}に登録しました`
-      : `たった今 ${resident.name} さんの${mealLabel}の登録を取り消しました`;
+      ? `たった今 ${resident.name} さんを${dayLabel}の${mealLabel}${verb}に登録しました`
+      : `たった今 ${resident.name} さんの${dayLabel}の${mealLabel}の登録を取り消しました`;
     showToast(message, () => handleTap(resident));
 
     // 裏でAPIを呼ぶ。失敗した場合のみ画面を元に戻す。
-    // 同一利用者への直前の呼び出しが終わってから送る(連打時の競合防止)。
-    const previous = pendingChains.current.get(resident.id) ?? Promise.resolve();
+    // 同一利用者・同一日への直前の呼び出しが終わってから送る(連打時の競合防止)。
+    const chainKey = overrideKey(date, resident.id);
+    const previous = pendingChains.current.get(chainKey) ?? Promise.resolve();
     const next = previous
       .catch(() => {})
-      .then(() => callToggle(resident.id, meals))
+      .then(() => callToggle(resident.id, meals, date))
       .catch((e) => {
-        applyLocalOverride(resident.id, meals, !willAdd);
+        applyLocalOverride(resident.id, meals, !willAdd, date);
         showToast(
           e instanceof Error ? e.message : "登録に失敗しました。通信環境をご確認ください。",
           () => {},
         );
       });
-    pendingChains.current.set(resident.id, next);
+    pendingChains.current.set(chainKey, next);
   }
 
   const selectedGroup = groups.find((g) => g.id === selectedGroupId) ?? null;
@@ -187,11 +204,37 @@ export default function EmergencyEditClient({ dateLabel }: { dateLabel: string }
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-zinc-900">緊急入力</h1>
-          <p className="text-sm text-zinc-500">{dateLabel}（当日のみ登録できます）</p>
+          <p className="text-sm text-zinc-500">前日・当日分のみ登録できます</p>
         </div>
         <Link href="/" className="rounded-md border border-zinc-300 px-4 py-2 text-sm">
           トップへ戻る
         </Link>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-zinc-500">対象日:</span>
+        <button
+          onClick={() => setSelectedDate(yesterday)}
+          disabled={!online}
+          className={`rounded-full border px-4 py-2 text-sm font-medium ${
+            selectedDate === yesterday
+              ? "border-zinc-900 bg-zinc-900 text-white"
+              : "border-zinc-300 bg-white text-zinc-700"
+          }`}
+        >
+          前日（{formatDateLabel(yesterday)}）
+        </button>
+        <button
+          onClick={() => setSelectedDate(today)}
+          disabled={!online}
+          className={`rounded-full border px-4 py-2 text-sm font-medium ${
+            selectedDate === today
+              ? "border-zinc-900 bg-zinc-900 text-white"
+              : "border-zinc-300 bg-white text-zinc-700"
+          }`}
+        >
+          当日（{formatDateLabel(today)}）
+        </button>
       </div>
 
       {!online && <OfflineBanner message="通信復旧後に操作できます。" />}
@@ -259,7 +302,9 @@ export default function EmergencyEditClient({ dateLabel }: { dateLabel: string }
             )}
             {groupResidents.map((r) => {
               const meals = [...selectedMeals];
-              const marked = meals.every((m) => overrides[r.id]?.includes(m));
+              const marked = meals.every((m) =>
+                overrides[overrideKey(selectedDate, r.id)]?.includes(m),
+              );
               return (
                 <button
                   key={r.id}

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireUser } from "@/lib/require-user";
-import { todayInTokyo } from "@/lib/board-date";
+import { addDays, isValidDateString, todayInTokyo } from "@/lib/board-date";
 import { MEAL_LABEL, isGhGroupName, type MealType } from "@/lib/emergency-meal";
 
 const VALID_MEALS: MealType[] = ["breakfast", "lunch", "dinner"];
@@ -15,10 +15,27 @@ export async function POST(request: NextRequest) {
   const meals = (body?.meals as MealType[] | undefined)?.filter((m) =>
     VALID_MEALS.includes(m),
   );
+  const requestedDate = body?.date as string | undefined;
 
   if (!residentId || !meals || meals.length === 0) {
     return NextResponse.json({ message: "不正なリクエストです。" }, { status: 400 });
   }
+
+  // kitchen_overrides.date は前日・当日のみ許可(DB側のCHECK制約・RLSと
+  // 同じ範囲)。クライアントから任意の日付は受け付けない。
+  const today = todayInTokyo();
+  const yesterday = addDays(today, -1);
+  if (
+    !requestedDate ||
+    !isValidDateString(requestedDate) ||
+    (requestedDate !== today && requestedDate !== yesterday)
+  ) {
+    return NextResponse.json(
+      { message: "対象日は前日または当日のみ指定できます。" },
+      { status: 400 },
+    );
+  }
+  const targetDate = requestedDate;
 
   const { data: resident } = await supabase
     .from("residents")
@@ -33,14 +50,12 @@ export async function POST(request: NextRequest) {
   const shortName =
     (resident.resident_groups as unknown as { short_name: string } | null)?.short_name ?? "";
   const type = isGhGroupName(shortName) ? "present" : "absent";
-  // kitchen_overrides.date は常に当日固定。クライアントからの日付指定は一切受け付けない (§8.0)。
-  const today = todayInTokyo();
 
   const { data: existing } = await supabase
     .from("kitchen_overrides")
     .select("meal")
     .eq("resident_id", residentId)
-    .eq("date", today)
+    .eq("date", targetDate)
     .in("meal", meals);
 
   const existingMeals = new Set((existing ?? []).map((e) => e.meal));
@@ -52,7 +67,7 @@ export async function POST(request: NextRequest) {
       .from("kitchen_overrides")
       .delete()
       .eq("resident_id", residentId)
-      .eq("date", today)
+      .eq("date", targetDate)
       .in("meal", meals);
 
     if (error) {
@@ -71,7 +86,7 @@ export async function POST(request: NextRequest) {
   const { error } = await supabase.from("kitchen_overrides").insert(
     missingMeals.map((m) => ({
       resident_id: residentId,
-      date: today,
+      date: targetDate,
       meal: m,
       type,
       created_by: user.id,
