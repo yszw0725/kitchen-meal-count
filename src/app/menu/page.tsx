@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserAndProfile } from "@/lib/current-user";
 import { MEAL_LABEL, type MealType } from "@/lib/board-types";
 import { formatDateLabel } from "@/lib/board-date";
+import { formatDishName } from "@/lib/menu-import/format";
 
 type MenuItemRow = {
   date: string;
@@ -91,7 +92,7 @@ export default async function MenuPage() {
                           ) : (
                             mealItems.map((item) => (
                               <p key={item.sort_order} className="text-xs leading-snug text-zinc-700">
-                                {item.dish_name}
+                                {formatDishName(item.dish_name)}
                               </p>
                             ))
                           )}
