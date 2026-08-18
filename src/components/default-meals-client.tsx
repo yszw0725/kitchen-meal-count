@@ -18,9 +18,11 @@ const WEEKDAY_DISPLAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
 export default function DefaultMealsClient({
   residents,
   groups,
+  initialResidentId,
 }: {
   residents: Resident[];
   groups: Group[];
+  initialResidentId?: string;
 }) {
   const groupById = useMemo(() => new Map(groups.map((g) => [g.id, g])), [groups]);
   const sortedResidents = useMemo(
@@ -33,7 +35,11 @@ export default function DefaultMealsClient({
     [residents, groupById],
   );
 
-  const [selectedId, setSelectedId] = useState(sortedResidents[0]?.id ?? "");
+  const initialSelectedId =
+    initialResidentId && residents.some((r) => r.id === initialResidentId)
+      ? initialResidentId
+      : (sortedResidents[0]?.id ?? "");
+  const [selectedId, setSelectedId] = useState(initialSelectedId);
   const [rows, setRows] = useState<DefaultMealRow[]>([]);
   // 読込中判定は明示的なsetState(true)を effect 内で同期的に呼ばず、
   // 「rows がどの利用者分として読み込まれたか」を非同期コールバック内でのみ

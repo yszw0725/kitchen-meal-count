@@ -23,6 +23,13 @@ const MEAL_FORM_LABELS: Record<string, string> = {
 };
 const MEAL_FORM_ORDER = ["kizami", "diet", "araimiji", "chomiji"];
 
+export const MEAL_FORM_OPTIONS: Array<{ code: string; label: string }> = [
+  { code: "kizami", label: "刻み食" },
+  { code: "diet", label: "ダイエット食" },
+  { code: "araimiji", label: "粗みじん食" },
+  { code: "chomiji", label: "超みじん食" },
+];
+
 export function mealFormSuffix(mealForm: string[] | null | undefined): string {
   if (!mealForm || mealForm.length === 0) return "";
   const sorted = [...mealForm].sort(
