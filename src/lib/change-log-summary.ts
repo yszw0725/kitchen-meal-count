@@ -97,6 +97,16 @@ export function summarizeChangeLog(row: ChangeLogRow, ctx: ChangeLogContext): st
       return "勤務表の行事・会議予定を更新";
     case "shift_work_notes":
       return "勤務表のメモ(掃除当番など)を更新";
+    case "menu_imports": {
+      const period = `${rec.start_date}〜${rec.end_date}`;
+      if (row.action === "DELETE") return `週間献立表(${period}、${rec.original_filename})を削除`;
+      return `週間献立表(${period}、${rec.original_filename})をアップロード`;
+    }
+    case "shift_imports": {
+      const period = `${rec.start_date}〜${rec.end_date}`;
+      if (row.action === "DELETE") return `勤務表(${period}、${rec.original_filename})を削除`;
+      return `勤務表(${period}、${rec.original_filename})をアップロード`;
+    }
     default:
       return `${row.table_name} ${row.action}`;
   }
