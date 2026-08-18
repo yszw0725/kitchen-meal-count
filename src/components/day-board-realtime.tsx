@@ -13,13 +13,7 @@ import ShiftNotesPanel, { type ShiftNoteInfo } from "@/components/shift-notes-pa
 
 const POLL_INTERVAL_MS = 5 * 60 * 1000;
 const HIGHLIGHT_DURATION_MS = 1000;
-const WATCHED_TABLES = [
-  "meal_exceptions",
-  "daily_meal_extras",
-  "kitchen_overrides",
-  "kitchen_visitor_overrides",
-  "residents",
-] as const;
+const WATCHED_TABLES = ["meal_exceptions", "daily_meal_extras", "residents"] as const;
 
 function diffHighlightKeys(prev: BoardMeal[], next: BoardMeal[]): Set<string> {
   const changed = new Set<string>();
