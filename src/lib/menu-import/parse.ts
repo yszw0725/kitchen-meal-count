@@ -18,7 +18,9 @@ const MEAL_BLOCKS: Array<{ meal: MealType; label: string; nameRowStart: number; 
   { meal: "dinner", label: "夕", nameRowStart: 23, nameRowEnd: 28 }, // Excel 24〜29行
 ];
 
-const DATE_HEADER_RE = /(\d{1,2})月(\d{1,2})日/;
+// Excelの日付書式によっては、1桁の日が右詰め用の空白でパディングされる
+// (例: "9月 1日")。月・日の直後に空白が入るケースを許容する。
+const DATE_HEADER_RE = /(\d{1,2})\s*月\s*(\d{1,2})\s*日/;
 
 function cellToString(value: unknown): string {
   if (value === null || value === undefined) return "";
