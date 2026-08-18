@@ -7,17 +7,17 @@ import { todayInTokyo } from "@/lib/board-date";
 import { MEAL_LABEL, type MealType } from "@/lib/board-types";
 import { useOnlineStatus } from "@/lib/use-online-status";
 import OfflineBanner from "@/components/offline-banner";
+import DateBar from "@/components/date-bar";
 
 const MEAL_ORDER: MealType[] = ["breakfast", "lunch", "dinner"];
 
-export default function VisitorCountClient({
-  dateLabel,
-  userId,
-}: {
-  dateLabel: string;
-  userId: string;
-}) {
-  const [dataLoading, setDataLoading] = useState(true);
+export default function VisitorCountClient() {
+  const [selectedDate, setSelectedDate] = useState<string>(todayInTokyo());
+  // setState(true)を effect 内で同期的に呼ばず、「どの日付分として読み込まれたか」を
+  // 非同期コールバック内でのみ更新する形にして loading を導出する
+  // (react-hooks/set-state-in-effect対応、default-meals-clientと同じ考え方)。
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const dataLoading = loadedFor !== selectedDate;
   const [loadError, setLoadError] = useState<string | null>(null);
   const [counts, setCounts] = useState<Record<MealType, number>>({
     breakfast: 0,
@@ -26,9 +26,9 @@ export default function VisitorCountClient({
   });
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // 区分ごとにAPI呼び出しを直列化するチェーン。連打時の競合を防ぐため、
-  // 同一区分への呼び出しは常に前回完了後に送る (S5と同じ考え方)。
-  const pendingChains = useRef<Map<MealType, Promise<unknown>>>(new Map());
+  // 日付×区分ごとにAPI呼び出しを直列化するチェーン。連打時の競合を防ぐため、
+  // 同一日付・同一食事への呼び出しは常に前回完了後に送る (S5と同じ考え方)。
+  const pendingChains = useRef<Map<string, Promise<unknown>>>(new Map());
   const online = useOnlineStatus();
 
   useEffect(() => {
@@ -37,40 +37,36 @@ export default function VisitorCountClient({
     };
   }, []);
 
+  // 来客数(daily_meal_extras.visitor_count)は、選択中の日付が変わるたびに
+  // 取得し直す(任意の日付を選べるようになったため)。
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const supabase = createClient();
-      const today = todayInTokyo();
-      const [extrasRes, overridesRes] = await Promise.all([
-        supabase.from("daily_meal_extras").select("meal, visitor_count").eq("date", today),
-        supabase
-          .from("kitchen_visitor_overrides")
-          .select("meal, visitor_count")
-          .eq("date", today),
-      ]);
+      const { data, error } = await supabase
+        .from("daily_meal_extras")
+        .select("meal, visitor_count")
+        .eq("date", selectedDate);
       if (cancelled) return;
 
-      if (extrasRes.error || overridesRes.error) {
+      if (error) {
         setLoadError("データの取得に失敗しました。通信環境をご確認のうえ再読み込みしてください。");
-        setDataLoading(false);
+        setLoadedFor(selectedDate);
         return;
       }
 
-      const extrasByMeal = new Map(extrasRes.data?.map((r) => [r.meal, r.visitor_count]));
-      const overridesByMeal = new Map(overridesRes.data?.map((r) => [r.meal, r.visitor_count]));
-
+      const byMeal = new Map(data?.map((r) => [r.meal, r.visitor_count]));
       setCounts({
-        breakfast: overridesByMeal.get("breakfast") ?? extrasByMeal.get("breakfast") ?? 0,
-        lunch: overridesByMeal.get("lunch") ?? extrasByMeal.get("lunch") ?? 0,
-        dinner: overridesByMeal.get("dinner") ?? extrasByMeal.get("dinner") ?? 0,
+        breakfast: byMeal.get("breakfast") ?? 0,
+        lunch: byMeal.get("lunch") ?? 0,
+        dinner: byMeal.get("dinner") ?? 0,
       });
-      setDataLoading(false);
+      setLoadedFor(selectedDate);
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [selectedDate]);
 
   function showToast(message: string) {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -80,6 +76,7 @@ export default function VisitorCountClient({
 
   function adjust(meal: MealType, delta: number) {
     if (!online) return;
+    const date = selectedDate;
     const previous = counts[meal];
     const next = Math.max(0, previous + delta);
     if (next === previous) return;
@@ -87,17 +84,18 @@ export default function VisitorCountClient({
     // 楽観的UI: サーバー応答を待たず、タップした瞬間に画面を確定する
     setCounts((prev) => ({ ...prev, [meal]: next }));
 
-    const chain = pendingChains.current.get(meal) ?? Promise.resolve();
+    const chainKey = `${date}|${meal}`;
+    const chain = pendingChains.current.get(chainKey) ?? Promise.resolve();
     const nextChain = chain
       .catch(() => {})
       .then(async () => {
         const supabase = createClient();
-        const { error } = await supabase.from("kitchen_visitor_overrides").upsert(
+        const { error } = await supabase.from("daily_meal_extras").upsert(
           {
-            date: todayInTokyo(),
+            date,
             meal,
             visitor_count: next,
-            created_by: userId,
+            updated_at: new Date().toISOString(),
           },
           { onConflict: "date,meal" },
         );
@@ -107,7 +105,7 @@ export default function VisitorCountClient({
         setCounts((prev) => ({ ...prev, [meal]: previous }));
         showToast("来客数の更新に失敗しました。通信環境をご確認ください。");
       });
-    pendingChains.current.set(meal, nextChain);
+    pendingChains.current.set(chainKey, nextChain);
   }
 
   return (
@@ -115,12 +113,14 @@ export default function VisitorCountClient({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-zinc-900">来客数を変更</h1>
-          <p className="text-sm text-zinc-500">{dateLabel}（当日のみ登録できます）</p>
+          <p className="text-sm text-zinc-500">任意の日付を選んで登録できます</p>
         </div>
         <Link href="/" className="rounded-md border border-zinc-300 px-4 py-2 text-sm">
           トップへ戻る
         </Link>
       </div>
+
+      <DateBar date={selectedDate} onDateChange={setSelectedDate} />
 
       {!online && <OfflineBanner message="通信復旧後に操作できます。" />}
 
