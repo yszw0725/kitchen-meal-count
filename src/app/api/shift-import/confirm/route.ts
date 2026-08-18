@@ -43,6 +43,37 @@ export async function POST(request: NextRequest) {
 
   const endDate = addDays(startDate, 27);
 
+  // 同じ期間(を含む重複期間)を再アップロードした場合の洗い替え
+  // (menu-import/confirmと同じ方針): アップロード済みの期間はすべて
+  // 閲覧できる方式のため、重複したまま残すと一覧に空のimportが残ったり、
+  // 削除順序によって古い(空になった)importが再度表示されてしまう。
+  // 重複する既存importは削除してから新しいimportを作成する
+  // (shift_entries/shift_date_eventsはON DELETE CASCADEで連動削除される。
+  // shift_staffはimportに紐付かない独立テーブルのため影響を受けない)。
+  const { data: overlapping } = await service
+    .from("shift_imports")
+    .select("id, storage_path")
+    .lte("start_date", endDate)
+    .gte("end_date", startDate);
+
+  if (overlapping && overlapping.length > 0) {
+    const paths = overlapping.map((row) => row.storage_path);
+    await service.storage.from("shift-imports").remove(paths);
+    const { error: overlapDeleteError } = await service
+      .from("shift_imports")
+      .delete()
+      .in(
+        "id",
+        overlapping.map((row) => row.id),
+      );
+    if (overlapDeleteError) {
+      return NextResponse.json(
+        { message: `既存データの削除に失敗しました: ${overlapDeleteError.message}` },
+        { status: 500 },
+      );
+    }
+  }
+
   const { data: importRow, error: importError } = await service
     .from("shift_imports")
     .insert({
@@ -97,21 +128,6 @@ export async function POST(request: NextRequest) {
 
   const nameToId = new Map(upsertedStaff.map((s) => [s.name, s.id]));
 
-  // 同じ期間を再アップロードした場合の洗い替え(menu_itemsと同じ方針):
-  // 対象期間のshift_entriesを先に削除してから新しい内容を投入する。
-  const { error: deleteError } = await service
-    .from("shift_entries")
-    .delete()
-    .gte("date", startDate)
-    .lte("date", endDate);
-
-  if (deleteError) {
-    return NextResponse.json(
-      { message: `既存データの削除に失敗しました: ${deleteError.message}` },
-      { status: 500 },
-    );
-  }
-
   const { error: insertError } = await service.from("shift_entries").insert(
     result.entries.map((entry) => ({
       date: entry.date,
@@ -124,21 +140,6 @@ export async function POST(request: NextRequest) {
   if (insertError) {
     return NextResponse.json(
       { message: `勤務データの登録に失敗しました: ${insertError.message}` },
-      { status: 500 },
-    );
-  }
-
-  // shift_date_events(ファイル内の日付に紐づく会議・行事の記載)も
-  // 同じ期間で洗い替えする。
-  const { error: deleteDateEventsError } = await service
-    .from("shift_date_events")
-    .delete()
-    .gte("date", startDate)
-    .lte("date", endDate);
-
-  if (deleteDateEventsError) {
-    return NextResponse.json(
-      { message: `既存データの削除に失敗しました: ${deleteDateEventsError.message}` },
       { status: 500 },
     );
   }

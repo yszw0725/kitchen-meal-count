@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserAndProfile } from "@/lib/current-user";
-import { addDays, formatDateLabel } from "@/lib/board-date";
+import { addDays, formatDateLabel, isValidDateString, todayInTokyo } from "@/lib/board-date";
 import EditableNotePanel from "@/components/editable-note-panel";
 
 type ShiftStaffRow = { id: string; name: string; sortOrder: number };
@@ -17,6 +17,8 @@ type ShiftBoard = {
   staff: ShiftStaffRow[];
   entries: ShiftEntryRow[];
   dateEvents: ShiftDateEventRow[];
+  prevStartDate: string | null;
+  nextStartDate: string | null;
 };
 
 const WEEKDAY_LABELS = ["月", "火", "水", "木", "金", "土", "日"];
@@ -153,16 +155,25 @@ function ShiftGrid({
   );
 }
 
-export default async function ShiftsPage() {
+export default async function ShiftsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ date?: string }>;
+}) {
   const { user } = await getCurrentUserAndProfile();
   if (!user) {
     redirect("/login");
   }
 
+  const params = await searchParams;
+  const selectedDate = isValidDateString(params.date) ? params.date : todayInTokyo();
+
   const supabase = await createClient();
   // 勤務表の表示に必要なデータを1回のRPC呼び出しで取得する(以前はshift_imports
   // 等→shift_staff/shift_entries/shift_date_eventsの2段階の逐次往復だった)。
-  const { data: board } = await supabase.rpc("get_shift_board");
+  // アップロード済みの期間はすべて削除しない限り閲覧できる方式のため、
+  // 対象日(p_date)を渡し、その日を含む期間を取得する。
+  const { data: board } = await supabase.rpc("get_shift_board", { p_date: selectedDate });
   const {
     events,
     workNotes,
@@ -171,6 +182,8 @@ export default async function ShiftsPage() {
     staff,
     entries,
     dateEvents: dateEventList,
+    prevStartDate,
+    nextStartDate,
   } = (board ?? {
     events: null,
     workNotes: null,
@@ -179,6 +192,8 @@ export default async function ShiftsPage() {
     staff: [],
     entries: [],
     dateEvents: [],
+    prevStartDate: null,
+    nextStartDate: null,
   }) as ShiftBoard;
 
   const codeMap = new Map(entries.map((e) => [`${e.staffId}|${e.date}`, e.code]));
@@ -194,6 +209,33 @@ export default async function ShiftsPage() {
         <Link href="/" className="rounded-md border border-zinc-300 px-4 py-2 text-sm">
           トップへ戻る
         </Link>
+      </div>
+
+      <div className="flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-3">
+        {prevStartDate ? (
+          <Link
+            href={`/shifts?date=${prevStartDate}`}
+            className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
+          >
+            ◀ 前の期間
+          </Link>
+        ) : (
+          <span className="rounded-md border border-zinc-100 px-3 py-1.5 text-sm text-zinc-300">
+            ◀ 前の期間
+          </span>
+        )}
+        {nextStartDate ? (
+          <Link
+            href={`/shifts?date=${nextStartDate}`}
+            className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
+          >
+            次の期間 ▶
+          </Link>
+        ) : (
+          <span className="rounded-md border border-zinc-100 px-3 py-1.5 text-sm text-zinc-300">
+            次の期間 ▶
+          </span>
+        )}
       </div>
 
       <EditableNotePanel

@@ -22,20 +22,12 @@ function formatDateTime(iso: string): string {
   });
 }
 
-export default function ShiftImportStatus({ current }: { current: ShiftImportInfo | null }) {
+function ShiftImportRow({ item }: { item: ShiftImportInfo }) {
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
-
-  if (!current) {
-    return (
-      <div className="rounded-lg border border-zinc-200 bg-white p-4">
-        <p className="text-sm text-zinc-400">現在アップロードされている勤務表はありません。</p>
-      </div>
-    );
-  }
 
   async function handleDelete() {
     setDeleting(true);
@@ -43,7 +35,7 @@ export default function ShiftImportStatus({ current }: { current: ShiftImportInf
     const res = await fetch("/api/shift-import/delete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: current!.id }),
+      body: JSON.stringify({ id: item.id }),
     });
     const body = await res.json().catch(() => ({}));
     setDeleting(false);
@@ -61,12 +53,11 @@ export default function ShiftImportStatus({ current }: { current: ShiftImportInf
 
   return (
     <div className="rounded-lg border border-zinc-200 bg-white p-4">
-      <p className="text-sm font-medium text-zinc-700">現在アップロードされている勤務表</p>
-      <p className="mt-1 text-sm text-zinc-600">
-        対象期間: {formatDateLabel(current.startDate)} 〜 {formatDateLabel(current.endDate)}
+      <p className="text-sm text-zinc-600">
+        対象期間: {formatDateLabel(item.startDate)} 〜 {formatDateLabel(item.endDate)}
       </p>
       <p className="text-xs text-zinc-400">
-        {current.originalFilename} / {formatDateTime(current.uploadedAt)} アップロード
+        {item.originalFilename} / {formatDateTime(item.uploadedAt)} アップロード
       </p>
 
       {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
@@ -82,7 +73,7 @@ export default function ShiftImportStatus({ current }: { current: ShiftImportInf
       ) : (
         <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3">
           <p className="text-sm text-red-800">
-            この勤務表を削除すると、厨房タブレットの勤務表画面には「まだアップロードされていません」と表示されます。ファイルから読み取った日付紐づけの会議・行事予定も合わせて削除されます(手入力の行事・会議予定欄、掃除当番メモは削除されません)。本当に削除しますか？
+            この勤務表を削除すると、厨房タブレットの勤務表画面でこの期間を閲覧できなくなります。ファイルから読み取った日付紐づけの会議・行事予定も合わせて削除されます(手入力の行事・会議予定欄、掃除当番メモは削除されません)。本当に削除しますか？
           </p>
           <div className="mt-2 flex gap-2">
             <button
@@ -102,6 +93,27 @@ export default function ShiftImportStatus({ current }: { current: ShiftImportInf
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+export default function ShiftImportStatus({ items }: { items: ShiftImportInfo[] }) {
+  if (items.length === 0) {
+    return (
+      <div className="rounded-lg border border-zinc-200 bg-white p-4">
+        <p className="text-sm text-zinc-400">現在アップロードされている勤務表はありません。</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm font-medium text-zinc-700">
+        アップロード済みの勤務表({items.length}件)
+      </p>
+      {items.map((item) => (
+        <ShiftImportRow key={item.id} item={item} />
+      ))}
     </div>
   );
 }
