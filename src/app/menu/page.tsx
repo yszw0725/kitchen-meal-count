@@ -3,7 +3,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUserAndProfile } from "@/lib/current-user";
 import { MEAL_LABEL, type MealType } from "@/lib/board-types";
-import { formatDateLabel } from "@/lib/board-date";
+import { formatDateLabel, isValidDateString, todayInTokyo } from "@/lib/board-date";
 import { formatDishName } from "@/lib/menu-import/format";
 
 type MenuItemRow = {
@@ -17,22 +17,40 @@ type MenuBoard = {
   startDate: string | null;
   endDate: string | null;
   items: MenuItemRow[];
+  prevStartDate: string | null;
+  nextStartDate: string | null;
 };
 
 const MEAL_ORDER: MealType[] = ["breakfast", "lunch", "dinner"];
 
-export default async function MenuPage() {
+export default async function MenuPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ date?: string }>;
+}) {
   const { user } = await getCurrentUserAndProfile();
   if (!user) {
     redirect("/login");
   }
 
+  const params = await searchParams;
+  const today = todayInTokyo();
+  const selectedDate = isValidDateString(params.date) ? params.date : today;
+
   const supabase = await createClient();
   // 献立表の表示に必要なデータを1回のRPC呼び出しで取得する(以前は
   // menu_imports→menu_itemsの2段階の逐次往復だったため、ネットワーク
   // 遅延の影響を受けやすかった。S2トップのget_day_boardと同じ考え方)。
-  const { data: board } = await supabase.rpc("get_menu_board");
-  const { startDate, endDate, items } = (board ?? { startDate: null, endDate: null, items: [] }) as MenuBoard;
+  // アップロード済みの週はすべて削除しない限り閲覧できる方式のため、
+  // 対象日(p_date)を渡し、その日を含む週を取得する。
+  const { data: board } = await supabase.rpc("get_menu_board", { p_date: selectedDate });
+  const { startDate, endDate, items, prevStartDate, nextStartDate } = (board ?? {
+    startDate: null,
+    endDate: null,
+    items: [],
+    prevStartDate: null,
+    nextStartDate: null,
+  }) as MenuBoard;
 
   const itemsByDate = new Map<string, MenuItemRow[]>();
   for (const item of items) {
@@ -50,6 +68,8 @@ export default async function MenuPage() {
     }
   }
 
+  const isCurrentWeek = !!startDate && !!endDate && today >= startDate && today <= endDate;
+
   return (
     <main className="mx-auto w-full max-w-[1600px] space-y-4 p-4">
       <div className="flex items-center justify-between">
@@ -57,6 +77,43 @@ export default async function MenuPage() {
         <Link href="/" className="rounded-md border border-zinc-300 px-4 py-2 text-sm">
           トップへ戻る
         </Link>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-white px-4 py-3">
+        <div className="flex items-center gap-2">
+          {prevStartDate ? (
+            <Link
+              href={`/menu?date=${prevStartDate}`}
+              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
+            >
+              ◀ 前の週
+            </Link>
+          ) : (
+            <span className="rounded-md border border-zinc-100 px-3 py-1.5 text-sm text-zinc-300">
+              ◀ 前の週
+            </span>
+          )}
+          {nextStartDate ? (
+            <Link
+              href={`/menu?date=${nextStartDate}`}
+              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
+            >
+              次の週 ▶
+            </Link>
+          ) : (
+            <span className="rounded-md border border-zinc-100 px-3 py-1.5 text-sm text-zinc-300">
+              次の週 ▶
+            </span>
+          )}
+        </div>
+        {!isCurrentWeek && (
+          <Link
+            href="/menu"
+            className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white"
+          >
+            今週
+          </Link>
+        )}
       </div>
 
       {!startDate ? (
