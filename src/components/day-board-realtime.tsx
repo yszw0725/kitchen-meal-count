@@ -204,7 +204,7 @@ export default function DayBoardRealtime({
             href="/emergency-edit"
             className="rounded-lg bg-zinc-900 px-6 py-3 text-base font-medium text-white hover:bg-zinc-800"
           >
-            ＋ 欠食・喫食を登録（緊急入力）
+            ＋ 欠食・喫食を登録
           </Link>
         ) : (
           <span className="cursor-not-allowed rounded-lg bg-zinc-300 px-6 py-3 text-base font-medium text-zinc-500">

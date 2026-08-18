@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { addDays, formatDateLabel, todayInTokyo } from "@/lib/board-date";
+import { todayInTokyo } from "@/lib/board-date";
 import {
   MEAL_LABEL,
   defaultEmergencyMeals,
@@ -13,6 +13,7 @@ import {
 } from "@/lib/emergency-meal";
 import { useOnlineStatus } from "@/lib/use-online-status";
 import OfflineBanner from "@/components/offline-banner";
+import DateBar from "@/components/date-bar";
 
 type Group = { id: string; short_name: string; sort_order: number };
 type Resident = {
@@ -22,42 +23,50 @@ type Resident = {
   group_id: string;
   meal_form: string[] | null;
 };
+type ExceptionType = "absent" | "present";
 
 const MEAL_ORDER: MealType[] = ["breakfast", "lunch", "dinner"];
 
-function overrideKey(date: string, residentId: string): string {
-  return `${date}|${residentId}`;
+function exceptionKey(residentId: string, meal: MealType): string {
+  return `${residentId}|${meal}`;
 }
 
-export default function EmergencyEditClient() {
-  const today = todayInTokyo();
-  const tomorrow = addDays(today, 1);
-  const dayAfterTomorrow = addDays(today, 2);
-  const dateOptions = [
-    { date: today, label: "当日" },
-    { date: tomorrow, label: "翌日" },
-    { date: dayAfterTomorrow, label: "翌々日" },
-  ];
-
+export default function EmergencyEditClient({ userId }: { userId: string }) {
   const [dataLoading, setDataLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [groups, setGroups] = useState<Group[]>([]);
   const [residents, setResidents] = useState<Resident[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-  const [selectedDate, setSelectedDate] = useState<string>(today);
+  const [selectedDate, setSelectedDate] = useState<string>(todayInTokyo());
   const [selectedMeals, setSelectedMeals] = useState<Set<MealType>>(
     () => new Set(defaultEmergencyMeals()),
   );
-  // キーは `${date}|${residentId}` (前日・当日の2日分をまとめて保持する)
-  const [overrides, setOverrides] = useState<Record<string, MealType[]>>({});
+  // キーは `${residentId}|${meal}` (選択中の日付1日分のみ保持する。
+  // 日付は制限なく任意に選べるため、以前のような数日分の先読みはせず、
+  // 日付が変わるたびに取得し直す)。値は登録されている例外の種別。
+  const [exceptions, setExceptions] = useState<Record<string, ExceptionType>>({});
+  // handleTapは「タップ→取消トースト→取消ボタン押下でhandleTapを再度呼ぶ」という
+  // 構造のため、取消ボタンのコールバックは直前のタップ時点のレンダーに閉じ込められた
+  // 古いexceptionsを参照してしまう(古いレンダーのhandleTapをそのまま捕まえるため)。
+  // refで常に最新のexceptionsを参照できるようにし、取消が正しく直前の変更を
+  // 打ち消せるようにする。
+  const exceptionsRef = useRef(exceptions);
+  useEffect(() => {
+    exceptionsRef.current = exceptions;
+  }, [exceptions]);
+  // setState(true)を effect 内で同期的に呼ばず、「どの日付分として読み込まれたか」を
+  // 非同期コールバック内でのみ更新する形にして loading を導出する
+  // (react-hooks/set-state-in-effect対応、default-meals-clientと同じ考え方)。
+  const [exceptionsLoadedFor, setExceptionsLoadedFor] = useState<string | null>(null);
+  const exceptionsLoading = exceptionsLoadedFor !== selectedDate;
   const [toast, setToast] = useState<{ message: string; onUndo: () => void } | null>(
     null,
   );
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // 利用者ごとにAPI呼び出しを直列化するチェーン。楽観的UIで画面は即座に
   // 更新するが、連打時にサーバーへのリクエストが並行実行されると
-  // toggle APIの読み取り→書き込みが競合し、意図しない状態(残留/二重)に
-  // なり得るため、同一利用者への呼び出しは常に前回完了後に送る。
+  // 読み取り→書き込みが競合し、意図しない状態(残留/二重)になり得るため、
+  // 同一利用者への呼び出しは常に前回完了後に送る。
   const pendingChains = useRef<Map<string, Promise<unknown>>>(new Map());
   const online = useOnlineStatus();
 
@@ -67,16 +76,13 @@ export default function EmergencyEditClient() {
     };
   }, []);
 
-  // 区分・利用者・当日〜翌々日の緊急上書きは、Next.jsサーバーを経由せず
-  // クライアントからSupabaseへ直接問い合わせる(S3の日付切替と同じ方式)。
-  // 開いた瞬間に見た目は表示し、一覧はデータ到着後に埋める。3日分をまとめて
-  // 取得し、日付トグルは再フェッチなしでクライアント側の絞り込みだけで
-  // 切り替える。
+  // 区分・利用者は日付に依存しないため初回のみ取得する(S3の日付切替と同じ方式で
+  // Next.jsサーバーを経由せずクライアントから直接Supabaseへ問い合わせる)。
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const supabase = createClient();
-      const [groupsRes, residentsRes, overridesRes] = await Promise.all([
+      const [groupsRes, residentsRes] = await Promise.all([
         supabase
           .from("resident_groups")
           .select("id, short_name, sort_order")
@@ -88,34 +94,54 @@ export default function EmergencyEditClient() {
           .is("left_on", null)
           .order("kana", { nullsFirst: false })
           .order("name"),
-        supabase
-          .from("kitchen_overrides")
-          .select("resident_id, meal, date")
-          .in("date", [today, tomorrow, dayAfterTomorrow]),
       ]);
       if (cancelled) return;
 
-      if (groupsRes.error || residentsRes.error || overridesRes.error) {
+      if (groupsRes.error || residentsRes.error) {
         setLoadError("データの取得に失敗しました。通信環境をご確認のうえ再読み込みしてください。");
         setDataLoading(false);
         return;
       }
 
-      const overridesByKey: Record<string, MealType[]> = {};
-      for (const o of overridesRes.data ?? []) {
-        const key = overrideKey(o.date, o.resident_id);
-        (overridesByKey[key] ??= []).push(o.meal);
-      }
-
       setGroups(groupsRes.data ?? []);
       setResidents(residentsRes.data ?? []);
-      setOverrides(overridesByKey);
       setDataLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [today, tomorrow, dayAfterTomorrow]);
+  }, []);
+
+  // 欠食・臨時喫食の登録状況(meal_exceptions)は、選択中の日付が変わるたびに
+  // 取得し直す(任意の日付を選べるようになったため、以前のような数日分の
+  // 先読みはしない)。
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("meal_exceptions")
+        .select("resident_id, meal, type")
+        .eq("date", selectedDate);
+      if (cancelled) return;
+
+      if (error) {
+        setLoadError("データの取得に失敗しました。通信環境をご確認のうえ再読み込みしてください。");
+        setExceptionsLoadedFor(selectedDate);
+        return;
+      }
+
+      const map: Record<string, ExceptionType> = {};
+      for (const row of data ?? []) {
+        map[exceptionKey(row.resident_id, row.meal as MealType)] = row.type as ExceptionType;
+      }
+      setExceptions(map);
+      setExceptionsLoadedFor(selectedDate);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedDate]);
 
   function showToast(message: string, onUndo: () => void) {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -132,33 +158,45 @@ export default function EmergencyEditClient() {
     });
   }
 
-  async function callToggle(residentId: string, meals: MealType[], date: string) {
-    const res = await fetch("/api/kitchen-overrides/toggle", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ residentId, meals, date }),
-    });
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.message ?? "登録に失敗しました。");
+  async function writeExceptions(
+    residentId: string,
+    meals: MealType[],
+    date: string,
+    type: ExceptionType | null,
+  ) {
+    const supabase = createClient();
+    if (type === null) {
+      const { error } = await supabase
+        .from("meal_exceptions")
+        .delete()
+        .eq("resident_id", residentId)
+        .eq("date", date)
+        .in("meal", meals);
+      if (error) throw error;
+      return;
     }
-    return res.json() as Promise<{
-      action: "added" | "removed";
-      residentName: string;
-      mealLabel: string;
-      type: "absent" | "present";
-    }>;
+    const { error } = await supabase.from("meal_exceptions").upsert(
+      meals.map((meal) => ({
+        resident_id: residentId,
+        date,
+        meal,
+        type,
+        created_by: userId,
+      })),
+      { onConflict: "resident_id,date,meal" },
+    );
+    if (error) throw error;
   }
 
-  function applyLocalOverride(residentId: string, meals: MealType[], added: boolean, date: string) {
-    setOverrides((prev) => {
-      const key = overrideKey(date, residentId);
-      const current = new Set(prev[key] ?? []);
-      for (const m of meals) {
-        if (added) current.add(m);
-        else current.delete(m);
+  function applyLocalException(residentId: string, meals: MealType[], type: ExceptionType | null) {
+    setExceptions((prev) => {
+      const next = { ...prev };
+      for (const meal of meals) {
+        const key = exceptionKey(residentId, meal);
+        if (type === null) delete next[key];
+        else next[key] = type;
       }
-      return { ...prev, [key]: [...current] };
+      return next;
     });
   }
 
@@ -166,31 +204,34 @@ export default function EmergencyEditClient() {
     if (!online) return;
     const date = selectedDate;
     const meals = [...selectedMeals];
-    const wasMarked = meals.every((m) => overrides[overrideKey(date, resident.id)]?.includes(m));
-    const willAdd = !wasMarked;
     const isGhResident = isGhGroupName(
       groups.find((g) => g.id === resident.group_id)?.short_name ?? "",
     );
+    const targetType: ExceptionType = isGhResident ? "present" : "absent";
+    const wasMarked = meals.every(
+      (m) => exceptionsRef.current[exceptionKey(resident.id, m)] === targetType,
+    );
+    const nextType: ExceptionType | null = wasMarked ? null : targetType;
     const verb = isGhResident ? "食べる人" : "お休み";
     const mealLabel = meals.map((m) => MEAL_LABEL[m]).join("・");
-    const dayLabel = dateOptions.find((d) => d.date === date)?.label ?? "";
 
     // 楽観的UI: サーバー応答を待たず、タップした瞬間に画面とトーストを確定する (§6.4)
-    applyLocalOverride(resident.id, meals, willAdd, date);
-    const message = willAdd
-      ? `たった今 ${resident.name} さんを${dayLabel}の${mealLabel}${verb}に登録しました`
-      : `たった今 ${resident.name} さんの${dayLabel}の${mealLabel}の登録を取り消しました`;
+    const previousType = wasMarked ? targetType : null;
+    applyLocalException(resident.id, meals, nextType);
+    const message = nextType !== null
+      ? `たった今 ${resident.name} さんを${mealLabel}${verb}に登録しました`
+      : `たった今 ${resident.name} さんの${mealLabel}の登録を取り消しました`;
     showToast(message, () => handleTap(resident));
 
-    // 裏でAPIを呼ぶ。失敗した場合のみ画面を元に戻す。
+    // 裏でDBを更新する。失敗した場合のみ画面を元に戻す。
     // 同一利用者・同一日への直前の呼び出しが終わってから送る(連打時の競合防止)。
-    const chainKey = overrideKey(date, resident.id);
+    const chainKey = `${date}|${resident.id}`;
     const previous = pendingChains.current.get(chainKey) ?? Promise.resolve();
     const next = previous
       .catch(() => {})
-      .then(() => callToggle(resident.id, meals, date))
+      .then(() => writeExceptions(resident.id, meals, date, nextType))
       .catch((e) => {
-        applyLocalOverride(resident.id, meals, !willAdd, date);
+        applyLocalException(resident.id, meals, previousType);
         showToast(
           e instanceof Error ? e.message : "登録に失敗しました。通信環境をご確認ください。",
           () => {},
@@ -210,31 +251,15 @@ export default function EmergencyEditClient() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-zinc-900">緊急入力</h1>
-          <p className="text-sm text-zinc-500">当日・翌日・翌々日分のみ登録できます</p>
+          <h1 className="text-xl font-bold text-zinc-900">欠食・臨時喫食の登録</h1>
+          <p className="text-sm text-zinc-500">任意の日付を選んで登録できます</p>
         </div>
         <Link href="/" className="rounded-md border border-zinc-300 px-4 py-2 text-sm">
           トップへ戻る
         </Link>
       </div>
 
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-zinc-500">対象日:</span>
-        {dateOptions.map((d) => (
-          <button
-            key={d.date}
-            onClick={() => setSelectedDate(d.date)}
-            disabled={!online}
-            className={`rounded-full border px-4 py-2 text-sm font-medium ${
-              selectedDate === d.date
-                ? "border-zinc-900 bg-zinc-900 text-white"
-                : "border-zinc-300 bg-white text-zinc-700"
-            }`}
-          >
-            {d.label}（{formatDateLabel(d.date)}）
-          </button>
-        ))}
-      </div>
+      <DateBar date={selectedDate} onDateChange={setSelectedDate} />
 
       {!online && <OfflineBanner message="通信復旧後に操作できます。" />}
 
@@ -295,39 +320,44 @@ export default function EmergencyEditClient() {
             ))}
           </div>
 
-          <div className="max-h-[560px] space-y-2 overflow-y-auto rounded-lg border border-zinc-200 p-2">
-            {groupResidents.length === 0 && (
-              <p className="p-4 text-center text-zinc-400">在籍者がいません。</p>
-            )}
-            {groupResidents.map((r) => {
-              const meals = [...selectedMeals];
-              const marked = meals.every((m) =>
-                overrides[overrideKey(selectedDate, r.id)]?.includes(m),
-              );
-              return (
-                <button
-                  key={r.id}
-                  onClick={() => handleTap(r)}
-                  disabled={!online}
-                  className={`flex w-full items-center justify-between rounded-lg border px-4 py-4 text-left text-lg transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                    marked
-                      ? "border-amber-400 bg-amber-50"
-                      : "border-zinc-200 bg-white hover:bg-zinc-50"
-                  }`}
-                >
-                  <span className="font-medium text-zinc-900">
-                    {r.name}
-                    {mealFormSuffix(r.meal_form)}
-                  </span>
-                  {marked && (
-                    <span className="rounded-full bg-amber-400 px-3 py-1 text-sm font-bold text-white">
-                      {isGh ? "食べる" : "休み中"}（タップで解除）
+          {exceptionsLoading ? (
+            <p className="p-4 text-center text-zinc-400">読み込み中…</p>
+          ) : (
+            <div className="max-h-[560px] space-y-2 overflow-y-auto rounded-lg border border-zinc-200 p-2">
+              {groupResidents.length === 0 && (
+                <p className="p-4 text-center text-zinc-400">在籍者がいません。</p>
+              )}
+              {groupResidents.map((r) => {
+                const meals = [...selectedMeals];
+                const targetType: ExceptionType = isGh ? "present" : "absent";
+                const marked = meals.every(
+                  (m) => exceptions[exceptionKey(r.id, m)] === targetType,
+                );
+                return (
+                  <button
+                    key={r.id}
+                    onClick={() => handleTap(r)}
+                    disabled={!online}
+                    className={`flex w-full items-center justify-between rounded-lg border px-4 py-4 text-left text-lg transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                      marked
+                        ? "border-amber-400 bg-amber-50"
+                        : "border-zinc-200 bg-white hover:bg-zinc-50"
+                    }`}
+                  >
+                    <span className="font-medium text-zinc-900">
+                      {r.name}
+                      {mealFormSuffix(r.meal_form)}
                     </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+                    {marked && (
+                      <span className="rounded-full bg-amber-400 px-3 py-1 text-sm font-bold text-white">
+                        {isGh ? "食べる" : "休み中"}（タップで解除）
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
