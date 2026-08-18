@@ -5,15 +5,21 @@ import VisitorCountClient from "@/components/visitor-count-client";
 // 区分・利用者データと同様、来客数もNext.jsサーバーを経由せず
 // クライアントからSupabaseへ直接問い合わせる(S5と同じ方式)。認証確認だけを
 // サーバーで先に済ませる。
-export default async function VisitorCountPage() {
+export default async function VisitorCountPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ date?: string }>;
+}) {
   const { user } = await getCurrentUserAndProfile();
   if (!user) {
     redirect("/login");
   }
 
+  const params = await searchParams;
+
   return (
     <main className="mx-auto w-full max-w-2xl flex-1 p-4">
-      <VisitorCountClient />
+      <VisitorCountClient initialDate={params.date} />
     </main>
   );
 }

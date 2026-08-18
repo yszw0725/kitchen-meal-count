@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { todayInTokyo } from "@/lib/board-date";
+import { isValidDateString, todayInTokyo } from "@/lib/board-date";
 import {
   MEAL_LABEL,
   defaultEmergencyMeals,
@@ -31,13 +31,23 @@ function exceptionKey(residentId: string, meal: MealType): string {
   return `${residentId}|${meal}`;
 }
 
-export default function EmergencyEditClient({ userId }: { userId: string }) {
+export default function EmergencyEditClient({
+  userId,
+  initialDate,
+}: {
+  userId: string;
+  initialDate?: string;
+}) {
   const [dataLoading, setDataLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [groups, setGroups] = useState<Group[]>([]);
   const [residents, setResidents] = useState<Resident[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-  const [selectedDate, setSelectedDate] = useState<string>(todayInTokyo());
+  // S2トップで表示中の日付から遷移してきた場合はその日付を引き継ぐ
+  // (単独で開いた場合は従来通り当日を初期値にする)。
+  const [selectedDate, setSelectedDate] = useState<string>(
+    isValidDateString(initialDate) ? initialDate : todayInTokyo(),
+  );
   const [selectedMeals, setSelectedMeals] = useState<Set<MealType>>(
     () => new Set(defaultEmergencyMeals()),
   );

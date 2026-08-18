@@ -201,7 +201,7 @@ export default function DayBoardRealtime({
       <div className="flex shrink-0 flex-wrap justify-center gap-3 pt-4 compact:pt-0">
         {online ? (
           <Link
-            href="/emergency-edit"
+            href={`/emergency-edit?date=${date}`}
             className="rounded-lg bg-zinc-900 px-6 py-3 text-base font-medium text-white hover:bg-zinc-800"
           >
             ＋ 欠食・喫食を登録
@@ -213,7 +213,7 @@ export default function DayBoardRealtime({
         )}
         {online ? (
           <Link
-            href="/visitor-count"
+            href={`/visitor-count?date=${date}`}
             className="rounded-lg border border-zinc-300 bg-white px-6 py-3 text-base font-medium text-zinc-900 hover:bg-zinc-50"
           >
             来客数を変更
