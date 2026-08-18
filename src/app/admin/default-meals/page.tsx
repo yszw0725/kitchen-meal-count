@@ -3,10 +3,16 @@ import { getCurrentUserAndProfile } from "@/lib/current-user";
 import { createClient } from "@/lib/supabase/server";
 import DefaultMealsClient from "@/components/default-meals-client";
 
-export default async function DefaultMealsPage() {
+export default async function DefaultMealsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ resident?: string }>;
+}) {
   const { user, profile } = await getCurrentUserAndProfile();
   if (!user) redirect("/login");
   if (profile?.role !== "admin") notFound();
+
+  const params = await searchParams;
 
   const supabase = await createClient();
   const [{ data: residents }, { data: groups }] = await Promise.all([
@@ -22,12 +28,13 @@ export default async function DefaultMealsPage() {
       <div>
         <h1 className="text-2xl font-bold text-zinc-900">標準喫食パターン編集</h1>
         <p className="mt-1 text-sm text-zinc-500">
-          新規利用者はExcel取込時に区分に応じた既定パターン（入所=全21マス／GH=平日昼のみ）が自動設定されます。ここではその後の個別調整を行います。
+          新規利用者は登録時に区分に応じた既定パターン（入所=全21マス／GH=平日昼のみ）が自動設定されます。ここではその後の個別調整を行います。
         </p>
       </div>
       <DefaultMealsClient
         residents={(residents ?? []).filter((r) => r.left_on === null)}
         groups={groups ?? []}
+        initialResidentId={params.resident}
       />
     </main>
   );
