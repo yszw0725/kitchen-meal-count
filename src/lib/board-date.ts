@@ -28,3 +28,9 @@ export function formatDateLabel(dateStr: string): string {
   const date = new Date(Date.UTC(y, m - 1, d));
   return `${y}年${m}月${d}日（${WEEKDAY_LABELS[date.getUTCDay()]}）`;
 }
+
+/** resident_default_meals.weekday (DBのextract(dow from date)と同じ, 0=日曜〜6=土曜) を返す。 */
+export function weekdayOfDate(dateStr: string): number {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+}
