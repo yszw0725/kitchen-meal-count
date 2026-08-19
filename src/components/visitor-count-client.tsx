@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { isValidDateString, todayInTokyo } from "@/lib/board-date";
 import { MEAL_LABEL, type MealType } from "@/lib/board-types";
 import { useOnlineStatus } from "@/lib/use-online-status";
 import OfflineBanner from "@/components/offline-banner";
@@ -11,12 +10,12 @@ import DateBar from "@/components/date-bar";
 
 const MEAL_ORDER: MealType[] = ["breakfast", "lunch", "dinner"];
 
-export default function VisitorCountClient({ initialDate }: { initialDate?: string }) {
+export default function VisitorCountClient({ initialDate }: { initialDate: string }) {
   // S2トップで表示中の日付から遷移してきた場合はその日付を引き継ぐ
-  // (単独で開いた場合は従来通り当日を初期値にする)。
-  const [selectedDate, setSelectedDate] = useState<string>(
-    isValidDateString(initialDate) ? initialDate : todayInTokyo(),
-  );
+  // (単独で開いた場合は当日が初期値になる)。値はサーバー側(page.tsx)で
+  // 確定済みのため、クライアント側でtodayInTokyo()を再評価しない
+  // (サーバー/クライアントで日付境界をまたぐとhydrationエラーになるため)。
+  const [selectedDate, setSelectedDate] = useState<string>(initialDate);
   // setState(true)を effect 内で同期的に呼ばず、「どの日付分として読み込まれたか」を
   // 非同期コールバック内でのみ更新する形にして loading を導出する
   // (react-hooks/set-state-in-effect対応、default-meals-clientと同じ考え方)。
