@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import { addDays, formatDateLabel } from "@/lib/board-date";
 import { useTodayInTokyo } from "@/lib/use-today";
 
@@ -17,6 +18,24 @@ export default function DateBar({
   // 実際の値へ更新する(useTodayInTokyo内部で解決)。
   const today = useTodayInTokyo();
   const isToday = date === today;
+  const dateInputRef = useRef<HTMLInputElement>(null);
+
+  // <input type="date">を透明なオーバーレイとして重ね、それ自体へのクリックで
+  // ブラウザ標準のカレンダーが開くことに依存する実装は、機種・ブラウザによって
+  // (特にiOS Safari等)信頼できずタップに反応しないことがある既知の問題がある。
+  // そのため、可視のボタンで確実にクリックを拾い、showPicker()で明示的に
+  // カレンダーを開く(inputへのポインタイベントは無効化し、値の保持と
+  // ネイティブピッカーの表示先としてのみ使う)。
+  function openCalendar() {
+    const el = dateInputRef.current;
+    if (!el) return;
+    if (typeof el.showPicker === "function") {
+      el.showPicker();
+    } else {
+      el.focus();
+      el.click();
+    }
+  }
 
   return (
     <div
@@ -35,18 +54,25 @@ export default function DateBar({
           ◀
         </button>
 
-        <label className="relative">
-          <span className="text-lg font-bold text-zinc-900">
+        <div className="relative">
+          <button
+            type="button"
+            onClick={openCalendar}
+            aria-label="日付を選択(カレンダーを開く)"
+            className="text-lg font-bold text-zinc-900 hover:underline"
+          >
             {formatDateLabel(date)}
-          </span>
+          </button>
           <input
+            ref={dateInputRef}
             type="date"
             value={date}
             onChange={(e) => e.target.value && onDateChange(e.target.value)}
-            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-            aria-label="日付を選択"
+            tabIndex={-1}
+            aria-hidden="true"
+            className="absolute inset-0 h-full w-full opacity-0 pointer-events-none"
           />
-        </label>
+        </div>
 
         <button
           onClick={() => onDateChange(addDays(date, 1))}
