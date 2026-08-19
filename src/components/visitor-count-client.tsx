@@ -23,6 +23,13 @@ export default function VisitorCountClient({ initialDate }: { initialDate?: stri
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const dataLoading = loadedFor !== selectedDate;
   const [loadError, setLoadError] = useState<string | null>(null);
+  // 選択中の日付をURLにも反映する(S2のday-board-realtimeと同じ方式)。
+  // 反映しないと、操作中に何らかの理由で画面が再読み込みされた場合、
+  // URLに残ったままの古い日付(初回遷移時の日付)に巻き戻ってしまう。
+  function handleDateChange(newDate: string) {
+    setSelectedDate(newDate);
+    window.history.replaceState(null, "", `/visitor-count?date=${newDate}`);
+  }
   const [counts, setCounts] = useState<Record<MealType, number>>({
     breakfast: 0,
     lunch: 0,
@@ -124,7 +131,7 @@ export default function VisitorCountClient({ initialDate }: { initialDate?: stri
         </Link>
       </div>
 
-      <DateBar date={selectedDate} onDateChange={setSelectedDate} />
+      <DateBar date={selectedDate} onDateChange={handleDateChange} />
 
       {!online && <OfflineBanner message="通信復旧後に操作できます。" />}
 

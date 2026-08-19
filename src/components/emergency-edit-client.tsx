@@ -53,6 +53,13 @@ export default function EmergencyEditClient({
   const [selectedMeals, setSelectedMeals] = useState<Set<MealType>>(
     () => new Set(defaultEmergencyMeals()),
   );
+  // 選択中の日付をURLにも反映する(S2のday-board-realtimeと同じ方式)。
+  // 反映しないと、登録操作中に何らかの理由で画面が再読み込みされた場合、
+  // URLに残ったままの古い日付(初回遷移時の日付)に巻き戻ってしまう。
+  function handleDateChange(newDate: string) {
+    setSelectedDate(newDate);
+    window.history.replaceState(null, "", `/emergency-edit?date=${newDate}`);
+  }
   // キーは `${residentId}|${meal}` (選択中の日付1日分のみ保持する。
   // 日付は制限なく任意に選べるため、以前のような数日分の先読みはせず、
   // 日付が変わるたびに取得し直す)。値は登録されている例外の種別。
@@ -343,7 +350,7 @@ export default function EmergencyEditClient({
         </Link>
       </div>
 
-      <DateBar date={selectedDate} onDateChange={setSelectedDate} />
+      <DateBar date={selectedDate} onDateChange={handleDateChange} />
 
       {!online && <OfflineBanner message="通信復旧後に操作できます。" />}
 
