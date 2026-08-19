@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { isValidDateString, todayInTokyo, weekdayOfDate } from "@/lib/board-date";
+import { weekdayOfDate } from "@/lib/board-date";
 import {
   MEAL_LABEL,
   defaultEmergencyMeals,
@@ -38,7 +38,7 @@ export default function EmergencyEditClient({
   initialDate,
 }: {
   userId: string;
-  initialDate?: string;
+  initialDate: string;
 }) {
   const [dataLoading, setDataLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -46,10 +46,10 @@ export default function EmergencyEditClient({
   const [residents, setResidents] = useState<Resident[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   // S2トップで表示中の日付から遷移してきた場合はその日付を引き継ぐ
-  // (単独で開いた場合は従来通り当日を初期値にする)。
-  const [selectedDate, setSelectedDate] = useState<string>(
-    isValidDateString(initialDate) ? initialDate : todayInTokyo(),
-  );
+  // (単独で開いた場合は当日が初期値になる)。値はサーバー側(page.tsx)で
+  // 確定済みのため、クライアント側でtodayInTokyo()を再評価しない
+  // (サーバー/クライアントで日付境界をまたぐとhydrationエラーになるため)。
+  const [selectedDate, setSelectedDate] = useState<string>(initialDate);
   const [selectedMeals, setSelectedMeals] = useState<Set<MealType>>(
     () => new Set(defaultEmergencyMeals()),
   );

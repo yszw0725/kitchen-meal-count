@@ -1,6 +1,7 @@
 "use client";
 
-import { addDays, formatDateLabel, todayInTokyo } from "@/lib/board-date";
+import { addDays, formatDateLabel } from "@/lib/board-date";
+import { useTodayInTokyo } from "@/lib/use-today";
 
 export default function DateBar({
   date,
@@ -9,7 +10,12 @@ export default function DateBar({
   date: string;
   onDateChange: (newDate: string) => void;
 }) {
-  const today = todayInTokyo();
+  // 「今日」の判定はレンダーのたびにtodayInTokyo()を直接評価しない。
+  // サーバーでの描画時刻とクライアントでのハイドレーション時刻が日付境界
+  // (深夜0時前後)をまたぐと結果が食い違い、hydrationエラーになるため、
+  // 初回描画では判定を保留(null=「今日ではない」扱い)し、マウント後にのみ
+  // 実際の値へ更新する(useTodayInTokyo内部で解決)。
+  const today = useTodayInTokyo();
   const isToday = date === today;
 
   return (
@@ -58,7 +64,7 @@ export default function DateBar({
           </span>
         )}
         <button
-          onClick={() => onDateChange(today)}
+          onClick={() => today && onDateChange(today)}
           disabled={isToday}
           className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
         >
