@@ -13,6 +13,7 @@ type Resident = {
   name: string;
   groupId: string;
   mealForm: string[];
+  enteredOn: string;
   leftOn: string | null;
 };
 
@@ -63,6 +64,7 @@ function ResidentEditForm({
   const [name, setName] = useState(resident.name);
   const [groupId, setGroupId] = useState(resident.groupId);
   const [mealForm, setMealForm] = useState<string[]>(resident.mealForm);
+  const [enteredOn, setEnteredOn] = useState(resident.enteredOn);
   const [enrolled, setEnrolled] = useState(resident.leftOn === null);
   const [leftOn, setLeftOn] = useState(resident.leftOn ?? todayInTokyo());
   const [saving, setSaving] = useState(false);
@@ -77,6 +79,10 @@ function ResidentEditForm({
       setError("氏名を入力してください。");
       return;
     }
+    if (!enteredOn) {
+      setError("入所日を入力してください。");
+      return;
+    }
     setSaving(true);
     setError(null);
     const supabase = createClient();
@@ -87,6 +93,7 @@ function ResidentEditForm({
         name: name.trim(),
         group_id: groupId,
         meal_form: mealForm,
+        entered_on: enteredOn,
         left_on: nextLeftOn,
       })
       .eq("id", resident.id);
@@ -95,7 +102,7 @@ function ResidentEditForm({
       setError(dbError.message);
       return;
     }
-    onSaved({ ...resident, name: name.trim(), groupId, mealForm, leftOn: nextLeftOn });
+    onSaved({ ...resident, name: name.trim(), groupId, mealForm, enteredOn, leftOn: nextLeftOn });
   }
 
   return (
@@ -130,6 +137,16 @@ function ResidentEditForm({
         <div className="mt-1">
           <MealFormCheckboxes value={mealForm} onChange={setMealForm} />
         </div>
+      </div>
+
+      <div>
+        <label className="block text-xs text-zinc-500">入所日</label>
+        <input
+          type="date"
+          value={enteredOn}
+          onChange={(e) => setEnteredOn(e.target.value)}
+          className="mt-1 rounded border border-zinc-300 px-2 py-1 text-sm"
+        />
       </div>
 
       <div>
@@ -202,6 +219,7 @@ function NewResidentForm({
   const [name, setName] = useState("");
   const [groupId, setGroupId] = useState(groups[0]?.id ?? "");
   const [mealForm, setMealForm] = useState<string[]>([]);
+  const [enteredOn, setEnteredOn] = useState(todayInTokyo());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -214,6 +232,10 @@ function NewResidentForm({
       setError("氏名・区分を入力してください。");
       return;
     }
+    if (!enteredOn) {
+      setError("入所日を入力してください。");
+      return;
+    }
     setSaving(true);
     setError(null);
     const supabase = createClient();
@@ -223,6 +245,7 @@ function NewResidentForm({
         p_name: name.trim(),
         p_group_id: groupId,
         p_meal_form: mealForm,
+        p_entered_on: enteredOn,
       },
     );
     setSaving(false);
@@ -230,9 +253,17 @@ function NewResidentForm({
       setError(dbError.message);
       return;
     }
-    onCreated({ id: data as string, name: name.trim(), groupId, mealForm, leftOn: null });
+    onCreated({
+      id: data as string,
+      name: name.trim(),
+      groupId,
+      mealForm,
+      enteredOn,
+      leftOn: null,
+    });
     setName("");
     setMealForm([]);
+    setEnteredOn(todayInTokyo());
     setOpen(false);
   }
 
@@ -279,6 +310,18 @@ function NewResidentForm({
         <div className="mt-1">
           <MealFormCheckboxes value={mealForm} onChange={setMealForm} />
         </div>
+      </div>
+      <div>
+        <label className="block text-xs text-zinc-500">入所日</label>
+        <input
+          type="date"
+          value={enteredOn}
+          onChange={(e) => setEnteredOn(e.target.value)}
+          className="mt-1 rounded border border-zinc-300 px-2 py-1 text-sm"
+        />
+        <p className="mt-1 text-xs text-zinc-400">
+          過去に遡って入所している場合は、実際の入所日に変更してください。
+        </p>
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
@@ -369,6 +412,7 @@ export default function ResidentsClient({
               <th className="px-3 py-2">氏名</th>
               <th className="px-3 py-2">区分</th>
               <th className="px-3 py-2">食形態</th>
+              <th className="px-3 py-2">入所日</th>
               <th className="px-3 py-2">在籍</th>
               <th className="px-3 py-2"></th>
             </tr>
@@ -382,6 +426,7 @@ export default function ResidentsClient({
                   <td className="px-3 py-2 text-zinc-500">
                     {mealFormSuffix(r.mealForm).replace(/[()]/g, "") || "－"}
                   </td>
+                  <td className="px-3 py-2 text-zinc-500">{r.enteredOn}</td>
                   <td className="px-3 py-2">
                     <span
                       className={`rounded-full px-2 py-0.5 text-xs font-bold ${
@@ -410,7 +455,7 @@ export default function ResidentsClient({
                 </tr>
                 {editingId === r.id && (
                   <tr className="border-t border-zinc-100">
-                    <td colSpan={5} className="px-3 py-3">
+                    <td colSpan={6} className="px-3 py-3">
                       <ResidentEditForm
                         resident={r}
                         groups={sortedGroups}
@@ -425,7 +470,7 @@ export default function ResidentsClient({
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-3 py-6 text-center text-zinc-400">
+                <td colSpan={6} className="px-3 py-6 text-center text-zinc-400">
                   該当する利用者がいません。
                 </td>
               </tr>
