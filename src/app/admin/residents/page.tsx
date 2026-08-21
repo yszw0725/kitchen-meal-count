@@ -12,7 +12,7 @@ export default async function ResidentsPage() {
   const [{ data: residents }, { data: groups }] = await Promise.all([
     supabase
       .from("residents")
-      .select("id, name, group_id, meal_form, left_on")
+      .select("id, name, group_id, meal_form, entered_on, left_on")
       .order("name"),
     supabase
       .from("resident_groups")
@@ -34,6 +34,7 @@ export default async function ResidentsPage() {
           name: r.name,
           groupId: r.group_id,
           mealForm: r.meal_form ?? [],
+          enteredOn: r.entered_on,
           leftOn: r.left_on,
         }))}
         groups={groups ?? []}
