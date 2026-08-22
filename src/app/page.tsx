@@ -49,12 +49,18 @@ export default async function HomePage({
     : null;
 
   // 縦向き表示は横向きレイアウトを一切変更せず、基準幅1280px
-  // (S2_LANDSCAPE_REFERENCE_WIDTH)で描画した内容全体をtransform: scale
-  // で画面幅に合わせて縮小表示する。個々の要素の文字サイズや余白を
-  // 縦向き向けに作り直すことはしない。
+  // (S2_LANDSCAPE_REFERENCE_WIDTH)で描画した内容全体をzoomで画面幅に
+  // 合わせて縮小表示する。個々の要素の文字サイズや余白を縦向き向けに
+  // 作り直すことはしない。transform: scaleは見た目だけを縮小しレイアウト上の
+  // 高さは縮小前のまま扱われるため、連絡ノート等で中身が伸びた際に
+  // 実際のスクロール可能範囲とズレて下部が見えなくなる。zoomはレイアウトの
+  // サイズ自体を縮小するため、ページ全体のスクロール範囲が縮小後の実サイズと
+  // 一致する。同じ理由で、縦横どちらも高さをdvhに固定してoverflow-hiddenで
+  // 覆う実装はせず、内容がビューポートを超えた場合はページ全体が自然に
+  // 縦スクロールできるようにする。
   return (
-    <div className="contents portrait:flex portrait:h-dvh portrait:flex-col portrait:overflow-hidden">
-      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col space-y-4 p-4 compact:flex-none compact:h-dvh compact:space-y-2 compact:overflow-hidden compact:p-3 portrait:mx-0 portrait:w-[1280px] portrait:max-w-none portrait:flex-none portrait:origin-top-left portrait:[transform:scale(calc(100vw/1280px))]">
+    <>
+      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col space-y-4 p-4 compact:space-y-2 compact:p-3 portrait:mx-0 portrait:w-[1280px] portrait:max-w-none portrait:flex-none portrait:[zoom:calc(100vw/1280px)]">
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-4">
             <h1 className="text-xl font-bold text-zinc-900">厨房食数管理</h1>
@@ -109,6 +115,6 @@ export default async function HomePage({
           }}
         />
       </main>
-    </div>
+    </>
   );
 }
