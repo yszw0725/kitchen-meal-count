@@ -6,7 +6,7 @@
 
 /* 縦向き表示向け。S2トップは横向きレイアウトを一切変更せず、
    基準幅(1280px = S2_LANDSCAPE_REFERENCE_WIDTH, page.tsx参照)で
-   描画した内容全体をtransform: scaleで画面幅に合わせて縮小表示する。
+   描画した内容全体をzoomで画面幅に合わせて縮小表示する。
    個々の要素の文字サイズ・余白を縦向き向けに調整することはしない。 */
 @custom-variant portrait (@media (orientation: portrait));
 
