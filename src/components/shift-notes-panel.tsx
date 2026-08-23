@@ -31,6 +31,27 @@ export default function ShiftNotesPanel({
   const [draft, setDraft] = useState(initialNote.content);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // タブレットのタッチペンでは入力欄内部のスクロールが操作できないため、
+  // 固定高さ+内部スクロールにはせず、入力量に応じてheightを実際のコンテンツ
+  // 高さ(scrollHeight)まで伸ばす。ページ全体のスクロールで全文にアクセス
+  // できるようにする(表示側の対応と揃える)。
+  function resizeTextarea() {
+    const el = textareaRef.current;
+    if (!el) return;
+    // box-sizing: border-box のためscrollHeightはborder分を含まない。
+    // heightにscrollHeightをそのまま設定すると2px程度content領域が
+    // 不足し内部スクロールが発生してしまうため、border幅を加算する。
+    const style = getComputedStyle(el);
+    const borderHeight = parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight + borderHeight}px`;
+  }
+
+  useEffect(() => {
+    if (editing) resizeTextarea();
+  }, [editing]);
 
   // 厨房タブレットは開きっぱなしで運用されるため、他端末からの更新を
   // リアルタイムに反映する。編集中(入力途中)に反映してdraftが消えて
@@ -128,11 +149,15 @@ export default function ShiftNotesPanel({
       {editing ? (
         <div className="space-y-2">
           <textarea
+            ref={textareaRef}
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              resizeTextarea();
+            }}
             rows={4}
             disabled={saving}
-            className="w-full rounded-md border border-zinc-300 p-2 text-sm focus:border-zinc-500 focus:outline-none"
+            className="w-full resize-none overflow-hidden rounded-md border border-zinc-300 p-2 text-sm focus:border-zinc-500 focus:outline-none"
           />
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex gap-2">
