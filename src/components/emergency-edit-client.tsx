@@ -170,8 +170,10 @@ export default function EmergencyEditClient({
   }, [selectedDate]);
 
   // 標準喫食パターン(resident_default_meals)も、選択中の日付の曜日が変わるたびに
-  // 取得し直す(施設全体でも1曜日分=最大26名×3食=78件程度でPostgRESTの
-  // 上限には収まる)。
+  // 取得し直す(施設全体でも1曜日分=最大26名×3食×世代数程度でPostgRESTの
+  // 上限には収まる)。同一(resident_id, meal)に複数世代(effective_from違い)が
+  // あり得るため、選択中日付以前のものだけに絞ったうえで、最も新しい
+  // effective_fromの行だけをクライアント側で残す。
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -179,8 +181,9 @@ export default function EmergencyEditClient({
       const weekday = weekdayOfDate(selectedDate);
       const { data, error } = await supabase
         .from("resident_default_meals")
-        .select("resident_id, meal, eats")
-        .eq("weekday", weekday);
+        .select("resident_id, meal, eats, effective_from")
+        .eq("weekday", weekday)
+        .lte("effective_from", selectedDate);
       if (cancelled) return;
 
       if (error) {
@@ -190,8 +193,14 @@ export default function EmergencyEditClient({
       }
 
       const map: Record<string, boolean> = {};
+      const latestEffectiveFrom: Record<string, string> = {};
       for (const row of data ?? []) {
-        map[exceptionKey(row.resident_id, row.meal as MealType)] = row.eats as boolean;
+        const key = exceptionKey(row.resident_id, row.meal as MealType);
+        const effectiveFrom = row.effective_from as string;
+        if (!(key in latestEffectiveFrom) || effectiveFrom > latestEffectiveFrom[key]) {
+          latestEffectiveFrom[key] = effectiveFrom;
+          map[key] = row.eats as boolean;
+        }
       }
       setDefaultMeals(map);
       setDefaultMealsLoadedFor(selectedDate);

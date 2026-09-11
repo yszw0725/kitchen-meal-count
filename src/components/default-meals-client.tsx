@@ -3,12 +3,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { MEAL_LABEL, type MealType } from "@/lib/board-types";
+import { todayInTokyo, formatDateLabel } from "@/lib/board-date";
 import { useOnlineStatus } from "@/lib/use-online-status";
 import OfflineBanner from "@/components/offline-banner";
+import DateBar from "@/components/date-bar";
 
 type Resident = { id: string; name: string; group_id: string; left_on: string | null };
 type Group = { id: string; short_name: string; sort_order: number };
-type DefaultMealRow = { resident_id: string; weekday: number; meal: MealType; eats: boolean };
+type DefaultMealRow = {
+  resident_id: string;
+  weekday: number;
+  meal: MealType;
+  eats: boolean;
+  effective_from: string;
+};
 
 const MEAL_ORDER: MealType[] = ["breakfast", "lunch", "dinner"];
 // weekday(DBの値、0=日曜〜6=土曜)は変更せず、表示順のみ月曜始まりにする。
@@ -40,7 +48,12 @@ export default function DefaultMealsClient({
       ? initialResidentId
       : (sortedResidents[0]?.id ?? "");
   const [selectedId, setSelectedId] = useState(initialSelectedId);
-  const [rows, setRows] = useState<DefaultMealRow[]>([]);
+  // 選択中の利用者の全世代(effective_from違いを含む)を保持する。
+  const [history, setHistory] = useState<DefaultMealRow[]>([]);
+  // このマスからどの日付の内容を編集するか(既定は今日)。
+  const [effectiveFrom, setEffectiveFrom] = useState(() => todayInTokyo());
+  // 編集中のグリッド(historyをeffectiveFrom時点で解決した値からトグルで変更していく)。
+  const [draft, setDraft] = useState<Map<string, boolean>>(new Map());
   // 読込中判定は明示的なsetState(true)を effect 内で同期的に呼ばず、
   // 「rows がどの利用者分として読み込まれたか」を非同期コールバック内でのみ
   // 更新する形にして導出する(react-hooks/set-state-in-effect対応)。
@@ -50,25 +63,26 @@ export default function DefaultMealsClient({
   const [saved, setSaved] = useState(false);
   const online = useOnlineStatus();
   const loading = selectedId !== "" && loadedFor !== selectedId;
+  const today = todayInTokyo();
 
-  // resident_default_mealsは利用者数×21件(7曜日×3食)になり、施設全体を
+  // resident_default_mealsは利用者数×21件(7曜日×3食)×世代数になり、施設全体を
   // 一括取得するとPostgRESTの最大取得件数(既定1000件)を超過し得る(超過分は
   // クライアント側のrange指定を無視してサーバー側で黙って切り捨てられる)。
-  // そのため選択中の利用者1名分(21件)だけを都度取得する方式にしている。
+  // そのため選択中の利用者1名分だけを都度取得する方式にしている。
   useEffect(() => {
     if (!selectedId) return;
     let cancelled = false;
     const supabase = createClient();
     supabase
       .from("resident_default_meals")
-      .select("resident_id, weekday, meal, eats")
+      .select("resident_id, weekday, meal, eats, effective_from")
       .eq("resident_id", selectedId)
       .then(({ data, error: fetchError }) => {
         if (cancelled) return;
         if (fetchError) {
           setError(fetchError.message);
         } else {
-          setRows((data ?? []) as DefaultMealRow[]);
+          setHistory((data ?? []) as DefaultMealRow[]);
         }
         setLoadedFor(selectedId);
       });
@@ -77,26 +91,48 @@ export default function DefaultMealsClient({
     };
   }, [selectedId]);
 
-  const grid = useMemo(() => {
+  // history(全世代)から、effectiveFrom時点で有効な値を(weekday, meal)ごとに解決する
+  // (対象日以前で最も新しいeffective_fromの行を採用する)。
+  const resolved = useMemo(() => {
     const map = new Map<string, boolean>();
-    for (const r of rows) {
-      map.set(`${r.weekday}:${r.meal}`, r.eats);
+    const latest = new Map<string, string>();
+    for (const r of history) {
+      if (r.effective_from > effectiveFrom) continue;
+      const key = `${r.weekday}:${r.meal}`;
+      const currentLatest = latest.get(key);
+      if (currentLatest === undefined || r.effective_from > currentLatest) {
+        latest.set(key, r.effective_from);
+        map.set(key, r.eats);
+      }
     }
     return map;
-  }, [rows]);
+  }, [history, effectiveFrom]);
+
+  // selectedId・effectiveFromが変わるたびに、編集中グリッドをresolvedへリセットする。
+  // (レンダー中にstateを調整する公式パターン。effect内で行うとcascading renderの
+  // 原因になるため避ける)
+  const resetKey = `${selectedId}|${effectiveFrom}|${loadedFor === selectedId ? "loaded" : "loading"}`;
+  const [lastResetKey, setLastResetKey] = useState(resetKey);
+  if (resetKey !== lastResetKey) {
+    setLastResetKey(resetKey);
+    setDraft(new Map(resolved));
+    setSaved(false);
+  }
+
+  // 未来日(今日より後)に既に登録されている変更予定を、日付ごとにまとめて一覧表示する。
+  const pendingChanges = useMemo(() => {
+    const dates = [...new Set(history.filter((r) => r.effective_from > today).map((r) => r.effective_from))];
+    return dates.sort();
+  }, [history, today]);
 
   function toggle(weekday: number, meal: MealType) {
     setSaved(false);
     const key = `${weekday}:${meal}`;
-    const current = grid.get(key) ?? false;
-    setRows((prev) => {
-      const exists = prev.some((r) => r.weekday === weekday && r.meal === meal);
-      if (exists) {
-        return prev.map((r) =>
-          r.weekday === weekday && r.meal === meal ? { ...r, eats: !current } : r,
-        );
-      }
-      return [...prev, { resident_id: selectedId, weekday, meal, eats: !current }];
+    const current = draft.get(key) ?? false;
+    setDraft((prev) => {
+      const next = new Map(prev);
+      next.set(key, !current);
+      return next;
     });
   }
 
@@ -109,14 +145,15 @@ export default function DefaultMealsClient({
     setError(null);
     setSaved(false);
 
-    const payload = [];
+    const payload: DefaultMealRow[] = [];
     for (let weekday = 0; weekday < 7; weekday++) {
       for (const meal of MEAL_ORDER) {
         payload.push({
           resident_id: selectedId,
           weekday,
           meal,
-          eats: grid.get(`${weekday}:${meal}`) ?? false,
+          eats: draft.get(`${weekday}:${meal}`) ?? false,
+          effective_from: effectiveFrom,
         });
       }
     }
@@ -124,17 +161,45 @@ export default function DefaultMealsClient({
     const supabase = createClient();
     const { error: dbError } = await supabase
       .from("resident_default_meals")
-      .upsert(payload, { onConflict: "resident_id,weekday,meal" });
+      .upsert(payload, { onConflict: "resident_id,weekday,meal,effective_from" });
 
     setSaving(false);
     if (dbError) {
       setError(dbError.message);
       return;
     }
+    // ローカルのhistoryにも反映し、再取得なしで「適用予定の変更」欄を更新する。
+    setHistory((prev) => {
+      const withoutThisGeneration = prev.filter((r) => r.effective_from !== effectiveFrom);
+      return [...withoutThisGeneration, ...payload];
+    });
     setSaved(true);
   }
 
+  async function cancelPendingChange(date: string) {
+    if (!online) {
+      setError("オフラインのため削除できません。");
+      return;
+    }
+    setError(null);
+    const supabase = createClient();
+    const { error: dbError } = await supabase
+      .from("resident_default_meals")
+      .delete()
+      .eq("resident_id", selectedId)
+      .eq("effective_from", date);
+    if (dbError) {
+      setError(dbError.message);
+      return;
+    }
+    setHistory((prev) => prev.filter((r) => r.effective_from !== date));
+    if (effectiveFrom === date) {
+      setEffectiveFrom(today);
+    }
+  }
+
   const selectedResident = sortedResidents.find((r) => r.id === selectedId);
+  const isToday = effectiveFrom === today;
 
   return (
     <div className="space-y-4">
@@ -145,7 +210,7 @@ export default function DefaultMealsClient({
           value={selectedId}
           onChange={(e) => {
             setSelectedId(e.target.value);
-            setSaved(false);
+            setEffectiveFrom(today);
           }}
           className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
         >
@@ -156,6 +221,20 @@ export default function DefaultMealsClient({
           ))}
         </select>
       </div>
+
+      {selectedResident && (
+        <div>
+          <label className="block text-xs text-zinc-500">いつから適用するか</label>
+          <div className="mt-1">
+            <DateBar date={effectiveFrom} onDateChange={setEffectiveFrom} />
+          </div>
+          <p className="mt-1 text-xs text-zinc-500">
+            {isToday
+              ? "今日から適用する内容を編集しています。保存すると即時反映されます。"
+              : `${formatDateLabel(effectiveFrom)}から適用する内容を編集しています。それより前の日付には影響しません。`}
+          </p>
+        </div>
+      )}
 
       {selectedResident && loading && <p className="text-sm text-zinc-400">読み込み中...</p>}
 
@@ -179,7 +258,7 @@ export default function DefaultMealsClient({
                     {MEAL_LABEL[meal]}
                   </td>
                   {WEEKDAY_DISPLAY_ORDER.map((weekday) => {
-                    const eats = grid.get(`${weekday}:${meal}`) ?? false;
+                    const eats = draft.get(`${weekday}:${meal}`) ?? false;
                     return (
                       <td key={weekday} className="px-2 py-2">
                         <button
@@ -212,6 +291,34 @@ export default function DefaultMealsClient({
       >
         {saving ? "保存中..." : "保存"}
       </button>
+
+      {selectedResident && !loading && pendingChanges.length > 0 && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-3">
+          <p className="text-sm font-medium text-amber-800">適用予定の変更</p>
+          <ul className="mt-2 space-y-1">
+            {pendingChanges.map((date) => (
+              <li key={date} className="flex items-center justify-between text-sm">
+                <span className="text-amber-900">{formatDateLabel(date)}から適用予定</span>
+                <span className="flex gap-2">
+                  <button
+                    onClick={() => setEffectiveFrom(date)}
+                    className="rounded-md border border-amber-400 px-2 py-1 text-xs text-amber-800"
+                  >
+                    編集
+                  </button>
+                  <button
+                    onClick={() => cancelPendingChange(date)}
+                    disabled={!online}
+                    className="rounded-md border border-amber-400 px-2 py-1 text-xs text-amber-800 disabled:opacity-50"
+                  >
+                    取消
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
